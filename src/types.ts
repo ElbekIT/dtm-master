@@ -1,110 +1,98 @@
 /**
- * @license
- * SPDX-License-Identifier: Apache-2.0
+ * DTM MASTER - Type Declarations
  */
 
-export interface User {
+export interface UserProfile {
   uid: string;
-  email: string | null;
-  photoURL: string | null;
-  nickname: string;
-  createdAt: string;
-  lastLogin: string;
-  score: number;
-  testsSolved: number;
-  country: string;
-  role: 'user' | 'admin';
-  hintsUsed?: number;
-  trialDaysAdded?: number;
-  usedPromoCode?: string;
-  promoCode?: string;
-  subscriptionStatus?: 'none' | 'Tekshirilyapti' | 'Tastiqlandi' | 'Tekshirilmadi';
-  subscriptionPlan?: 'haftalik' | 'oylik' | 'yillik';
-  premium?: boolean;
-  premiumUntil?: string;
-  bannedUntil?: string | null;
-  referredBy?: string;
-}
-
-export interface Direction {
-  id: string;
-  name: string;
-  description: string;
-  subjects: string[]; // Subject names included in this direction
+  displayName: string;
+  email: string;
+  photoURL: string;
+  username: string; // Unique nickname
+  createdAt: number;
+  trialExpiresAt: number;
+  premiumStatus: 'free' | 'pending' | 'premium';
+  premiumExpiresAt: number;
+  promoCode: string; // Unique promo code
+  referredBy: string | null;
+  helpChances: number; // 0 to 3
+  helpUsedTotal: number;
+  examCount: number;
+  avgScore: number;
+  highestScore: number;
+  lowestTime: number; // in seconds, for exams with highest score
+  isBanned: boolean;
+  banType: 'none' | 'temporary' | 'permanent';
+  banUntil: number | null;
+  lastUpdated: number;
 }
 
 export interface Question {
   id: string;
-  question: string;
+  subject: string; // e.g. "Matematika", "Fizika", "Tarix", "Ona tili", "Ingliz tili"
+  questionText: string;
   options: {
     A: string;
     B: string;
     C: string;
     D: string;
   };
-  correctAnswer?: string; // Stored securely, only accessible on backend/admin
-  subject: string;
-  direction?: string; // Optional, some questions are direction-specific
-  difficulty: 'easy' | 'medium' | 'hard';
-  image?: string;
+  correctAnswer: 'A' | 'B' | 'C' | 'D';
 }
 
-export interface TestSession {
+export interface ExamSession {
   id: string;
   uid: string;
-  directionId: string;
-  directionName: string;
+  status: 'active' | 'completed';
   startTime: number;
-  durationSeconds: number; // e.g., 3 hours = 10800 seconds
-  questions: Question[]; // Note: correctAnswer will be stripped for normal users
-  answers: Record<string, string>; // questionId -> chosenOption ('A', 'B', 'C', 'D')
-  completed: boolean;
-  score?: number;
-  correctCount?: number;
-  wrongCount?: number;
-  emptyCount?: number;
-  timeUsed?: string;
-  hintsUsed?: number;
-  createdAt: string;
+  durationLeft: number; // seconds (starts at 14400 = 4 hours)
+  questionIds: string[];
+  answers: Record<string, 'A' | 'B' | 'C' | 'D'>; // questionId -> selected answer
+  currentQuestionIndex: number;
+  helpUsedOnQuestions: Record<string, string[]>; // questionId -> list of eliminated option keys (e.g. ["A", "C"])
+  helpChancesLeft: number; // starts at 3
 }
 
-export interface LeaderboardEntry {
+export interface ExamResult {
+  id: string;
   uid: string;
-  rank?: number;
-  nickname: string;
-  direction: string;
-  score: number;
-  correctCount: number;
-  timeUsed: string;
-  hintsUsed?: number;
-  updatedAt: string;
+  userDisplayName: string;
+  userEmail: string;
+  userUsername: string;
+  score: number; // out of 90
+  timeSpent: number; // in seconds
+  helpUsed: number;
+  createdAt: number;
+  subjectsSummary?: Record<string, { correct: number; total: number }>;
 }
 
-export interface DtmSubject {
+export interface PaymentRequest {
   id: string;
-  name: string;
-  questionsCount: number;
-  pointsPerQuestion: number;
+  uid: string;
+  userDisplayName: string;
+  userEmail: string;
+  userUsername: string;
+  plan: 'weekly' | 'monthly' | 'yearly';
+  amount: number; // e.g. 29000, 50000, 100000
+  receiptBase64: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+  updatedAt: number;
 }
 
-export interface Notification {
+export interface Announcement {
   id: string;
-  userId: string; // 'all' or user's uid
   title: string;
-  message: string;
-  createdAt: string;
+  content: string;
+  createdAt: number;
+  author: string;
 }
 
-export interface Purchase {
-  id: string; // usually user's uid
+export interface HelpHistoryLog {
+  id: string;
   uid: string;
-  nickname: string;
-  email: string | null;
-  plan: 'haftalik' | 'oylik' | 'yillik';
-  price: number;
-  receiptImage: string; // Base64 representation
-  status: 'Tekshirilyapti' | 'Tastiqlandi' | 'Tekshirilmadi';
-  createdAt: string;
-  updatedAt: string;
+  userDisplayName: string;
+  examId: string;
+  questionId: string;
+  eliminatedOptions: string[];
+  timestamp: number;
 }
-
