@@ -1,30 +1,31 @@
-import { initializeApp } from "firebase/app";
-import { 
-  initializeFirestore,
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit, 
-  runTransaction,
-  writeBatch
-} from "firebase/firestore";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { 
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
-  signOut, 
+  signInWithRedirect, 
+  signOut,
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser 
 } from "firebase/auth";
+import { 
+  getFirestore, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc, 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  onSnapshot,
+  serverTimestamp,
+  addDoc,
+  deleteDoc
+} from "firebase/firestore";
 
-// Explicit user-provided Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCR2fz65ziwSu3T4dfPQFni1YoVgdGduac",
   authDomain: "dtm-ga-tayyorgarlik.firebaseapp.com",
@@ -36,85 +37,31 @@ const firebaseConfig = {
   measurementId: "G-HFLMP30E6D"
 };
 
-// Initialize Firebase client
-const app = initializeApp(firebaseConfig);
-// Force long-polling to prevent WebSocket connection failures inside AI Studio sandboxed iframe
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true
-});
+// Initialize Firebase
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// Auto-retry wrapper helper to guarantee flawless operation under transient network errors
-export async function runWithRetry<T>(fn: () => Promise<T>, maxRetries = 5, delayMs = 1500): Promise<T> {
-  let attempt = 0;
-  while (true) {
-    try {
-      return await fn();
-    } catch (error: any) {
-      attempt++;
-      console.warn(`[Firebase Retry] Attempt ${attempt} failed. Error:`, error);
-      if (attempt >= maxRetries) {
-        throw error;
-      }
-      // Wait before next attempt (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, delayMs * Math.pow(1.5, attempt - 1)));
-    }
-  }
-}
-
-/**
- * Check if username is already taken.
- */
-export async function checkUsernameUnique(username: string): Promise<boolean> {
-  const normalized = username.trim().toLowerCase();
-  return runWithRetry(async () => {
-    try {
-      const docRef = doc(db, "usernames", normalized);
-      const docSnap = await getDoc(docRef);
-      return !docSnap.exists();
-    } catch (error: any) {
-      const msg = error.message || "";
-      if (msg.toLowerCase().includes("offline") || error.code === "unavailable") {
-        console.warn("Offline detected in checkUsernameUnique. Bypassing check to prevent blocking.", error);
-        return true;
-      }
-      throw error;
-    }
-  });
-}
-
-/**
- * Reserves a username in a transactional transaction to prevent race conditions.
- */
-export async function reserveUsername(uid: string, username: string): Promise<boolean> {
-  const normalized = username.trim().toLowerCase();
-  return runWithRetry(async () => {
-    try {
-      await runTransaction(db, async (transaction) => {
-        const usernameRef = doc(db, "usernames", normalized);
-        const usernameSnap = await transaction.get(usernameRef);
-        if (usernameSnap.exists()) {
-          throw new Error("Username is already taken");
-        }
-        transaction.set(usernameRef, { uid });
-      });
-      return true;
-    } catch (e: any) {
-      console.warn("Failed to reserve username transactionally, checking fallbacks:", e);
-      const msg = e.message || "";
-      if (msg.toLowerCase().includes("offline") || e.code === "unavailable" || msg.toLowerCase().includes("transaction") || msg.toLowerCase().includes("client is offline")) {
-        try {
-          console.warn("Offline or iframe sandbox detected during reservation transaction. Falling back to direct setDoc.");
-          const usernameRef = doc(db, "usernames", normalized);
-          await setDoc(usernameRef, { uid });
-          return true;
-        } catch (innerErr) {
-          console.warn("Bypass setDoc failed, forcing fallback return true", innerErr);
-          return true; // Extreme fallback to keep the student unblocked
-        }
-      }
-      return false;
-    }
-  });
-}
+export {
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+  onAuthStateChanged,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  serverTimestamp,
+  addDoc,
+  deleteDoc
+};
+export type { FirebaseUser };

@@ -1,99 +1,131 @@
-/**
- * DTM MASTER - Type Declarations
- */
+export type UserRole = 'user' | 'admin';
 
 export interface UserProfile {
   uid: string;
-  displayName: string;
   email: string;
   photoURL: string;
-  username: string; // Unique nickname
+  nickname: string;
   createdAt: number;
-  trialExpiresAt: number;
-  premiumStatus: 'free' | 'pending' | 'premium';
-  premiumExpiresAt: number;
-  promoCode: string; // Unique promo code
-  referredBy: string | null;
-  helpChances: number; // 0 to 3
-  helpUsedTotal: number;
-  examCount: number;
-  avgScore: number;
-  highestScore: number;
-  lowestTime: number; // in seconds, for exams with highest score
-  isBanned: boolean;
-  banType: 'none' | 'temporary' | 'permanent';
-  banUntil: number | null;
-  lastUpdated: number;
+  lastLogin: number;
+  score: number;
+  testsSolved: number;
+  country: string;
+  role: UserRole;
+  referralCode: string;
+  usedReferralCode?: string | null;
+  trialDays: number;
+  trialStartedAt: number;
+  isPremium: boolean;
+  premiumUntil?: number | null;
+  helpsUsedCount: number;
+  isBanned?: boolean;
+  banReason?: string | null;
+  banUntil?: number | null;
+  welcomed?: boolean;
 }
+
+export type SubjectType = 
+  | 'mathematics' 
+  | 'physics' 
+  | 'native_language' 
+  | 'history' 
+  | 'mandatory_math' 
+  | 'professional';
 
 export interface Question {
   id: string;
-  subject: string; // e.g. "Matematika", "Fizika", "Tarix", "Ona tili", "Ingliz tili"
-  questionText: string;
-  options: {
-    A: string;
-    B: string;
-    C: string;
-    D: string;
-  };
-  correctAnswer: 'A' | 'B' | 'C' | 'D';
+  question: string;
+  options: [string, string, string, string]; // [A, B, C, D]
+  correctAnswer: string; // The text or index of correct answer
+  subject: SubjectType | string;
+  directionId?: string; // Optional specific direction
+  difficulty: 'easy' | 'medium' | 'hard';
+  explanation?: string;
+  image?: string;
+}
+
+export interface ExamQuestion extends Question {
+  shuffledOptions: string[];
+  userAnswer?: string;
+  eliminatedOptions?: string[]; // Options eliminated by lifeline/yordam
+}
+
+export interface Direction {
+  id: string;
+  title: string;
+  description: string;
+  iconName: string;
+  professionalSubjects: string[];
+  totalQuestions: number;
 }
 
 export interface ExamSession {
-  id: string;
-  uid: string;
-  status: 'active' | 'completed';
+  sessionId: string;
+  userId: string;
+  directionId: string;
+  directionTitle: string;
+  questions: ExamQuestion[];
+  answers: Record<number, string>; // questionIndex -> selectedOption
+  currentIndex: number;
   startTime: number;
-  durationLeft: number; // seconds (starts at 14400 = 4 hours)
-  questionIds: string[];
-  questions?: Question[]; // Store complete selected questions directly
-  answers: Record<string, 'A' | 'B' | 'C' | 'D'>; // questionId -> selected answer
-  currentQuestionIndex: number;
-  helpUsedOnQuestions: Record<string, string[]>; // questionId -> list of eliminated option keys (e.g. ["A", "C"])
-  helpChancesLeft: number; // starts at 3
+  timeRemainingSeconds: number; // 4 hours = 14400s
+  helpsRemaining: number; // 3 lifelines per test
+  helpsUsedInSession: number;
+  isCompleted: boolean;
+  completedAt?: number;
 }
 
-export interface ExamResult {
+export interface TestResult {
   id: string;
-  uid: string;
-  userDisplayName: string;
-  userEmail: string;
-  userUsername: string;
-  score: number; // out of 90
-  timeSpent: number; // in seconds
-  helpUsed: number;
+  userId: string;
+  userNickname: string;
+  userPhoto?: string;
+  directionId: string;
+  directionTitle: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  wrongAnswers: number;
+  emptyAnswers: number;
+  timeUsedSeconds: number;
+  totalScore: number; // Calculated score
+  percentage: number;
+  passed: boolean;
+  helpsUsed: number;
   createdAt: number;
-  subjectsSummary?: Record<string, { correct: number; total: number }>;
+  subjectBreakdown: Record<string, { total: number; correct: number; score: number }>;
 }
 
-export interface PaymentRequest {
+export interface LeaderboardEntry {
   id: string;
-  uid: string;
-  userDisplayName: string;
-  userEmail: string;
-  userUsername: string;
-  plan: 'weekly' | 'monthly' | 'yearly';
-  amount: number; // e.g. 29000, 50000, 100000
-  receiptBase64: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: number;
+  userId: string;
+  nickname: string;
+  photoURL?: string;
+  directionTitle: string;
+  score: number;
+  correctAnswers: number;
+  timeUsedSeconds: number;
+  helpsUsed: number;
   updatedAt: number;
 }
 
-export interface Announcement {
+export interface PaymentPurchase {
+  id: string;
+  userId: string;
+  userNickname: string;
+  userEmail: string;
+  planType: 'weekly' | 'monthly' | 'yearly';
+  planTitle: string;
+  amountUZS: number;
+  receiptUrl: string; // Base64 or Firebase Storage URL
+  status: 'pending' | 'approved' | 'rejected'; // Tekshirilmoqda | Tasdiqlandi | Rad etildi
+  createdAt: number;
+  reviewedAt?: number;
+}
+
+export interface AdminNotification {
   id: string;
   title: string;
   content: string;
   createdAt: number;
   author: string;
-}
-
-export interface HelpHistoryLog {
-  id: string;
-  uid: string;
-  userDisplayName: string;
-  examId: string;
-  questionId: string;
-  eliminatedOptions: string[];
-  timestamp: number;
 }

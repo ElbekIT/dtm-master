@@ -1,6 +1,6 @@
 {
   "name": "DTM MASTER",
-  "description": "Production-ready State Test Center (DTM) preparation and exam platform in Uzbekistan, featuring secure randomized shufflers, query auto-retries, 50-50 help lifelines, promo-code referrals, subscription checking, and a comprehensive administration dashboard.",
+  "description": "O'zbekiston abituriyentlari va Perevod imtihonlariga professional tayyorgarlik platformasi",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
