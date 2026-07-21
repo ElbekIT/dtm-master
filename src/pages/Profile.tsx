@@ -6,8 +6,8 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { User as UserIcon, BookOpen, Star, Trophy, Mail, Calendar, MapPin, ShieldAlert, FileText, CheckCircle2, XCircle } from "lucide-react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
+import { collection, query, where, orderBy } from "firebase/firestore";
 import { User } from "../types";
 
 interface ProfileProps {

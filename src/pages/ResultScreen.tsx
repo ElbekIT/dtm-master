@@ -6,8 +6,8 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { CheckCircle2, XCircle, Clock, BookOpen, BarChart3, Star, RotateCcw, Home, Trophy, RefreshCw } from "lucide-react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType, addDoc, getDoc, setDoc } from "../lib/firebase";
+import { collection, doc } from "firebase/firestore";
 
 interface ResultScreenProps {
   currentUser: {

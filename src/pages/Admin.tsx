@@ -9,8 +9,8 @@ import {
   ShieldAlert, Cpu, Users, Database, HelpCircle, AlertTriangle, Trash2, 
   UserX, CheckCircle, PlusCircle, Upload, Download, Edit2, FileSpreadsheet, FileText, CheckCircle2 
 } from "lucide-react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, getDocs, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType, getDocs, setDoc, deleteDoc } from "../lib/firebase";
+import { collection, doc } from "firebase/firestore";
 import { Question, User } from "../types";
 
 export default function Admin() {

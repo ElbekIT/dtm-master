@@ -6,8 +6,8 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Trophy, Medal, Star, Clock, Calendar, Search } from "lucide-react";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 import { LeaderboardEntry } from "../types";
 
 export default function Leaderboard() {

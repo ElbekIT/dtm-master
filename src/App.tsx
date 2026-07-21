@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "./lib/firebase";
+import { doc } from "firebase/firestore";
+import { auth, db, getDoc } from "./lib/firebase";
 import { User, Question } from "./types";
 import { HelpCircle, Award, CheckCircle2, ShieldCheck, Cpu } from "lucide-react";
 
@@ -48,7 +48,19 @@ export default function App() {
 
   // Monitor Authentication state
   useEffect(() => {
+    let active = true;
+
+    // Safety backup timeout to force app state to load after 2.5 seconds
+    const safetyTimer = setTimeout(() => {
+      if (active && authChecking) {
+        console.warn("Firebase Auth timed out. Loading in offline-ready state.");
+        setAuthChecking(false);
+      }
+    }, 2500);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!active) return;
+      
       if (firebaseUser) {
         try {
           const userDocRef = doc(db, "users", firebaseUser.uid);
@@ -66,10 +78,16 @@ export default function App() {
       } else {
         setCurrentUser(null);
       }
+      
+      clearTimeout(safetyTimer);
       setAuthChecking(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      active = false;
+      unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   const handleLoginSuccess = (user: User) => {

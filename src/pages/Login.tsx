@@ -5,9 +5,9 @@
 
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { auth, googleProvider, db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { auth, googleProvider, db, handleFirestoreError, OperationType, getDoc, setDoc } from "../lib/firebase";
 import { signInWithPopup } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { Chrome, ShieldAlert, Award, ArrowRight, CheckCircle2, MapPin } from "lucide-react";
 import { User } from "../types";
 
