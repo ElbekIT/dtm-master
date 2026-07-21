@@ -30,6 +30,23 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [nickname, setNickname] = useState("");
   const [country, setCountry] = useState("O'zbekiston");
 
+  // Admin password states
+  const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminPasswordError, setAdminPasswordError] = useState<string | null>(null);
+
+  const handleVerifyAdminPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPassword === "79178195327178195327") {
+      setAdminPassword("");
+      setAdminPasswordError(null);
+      setShowAdminPasswordModal(false);
+      handleDeveloperLogin("admin");
+    } else {
+      setAdminPasswordError("Noto'g'ri parol! Qaytadan urinib ko'ring.");
+    }
+  };
+
   // Handles real Firebase Google Authentication
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -55,7 +72,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         // Update last login
         const updatedUser: User = {
           ...existingData,
-          lastLogin: new Date().toISOString()
+          lastLogin: new Date().toISOString(),
+          promoCode: existingData.promoCode || `${existingData.nickname.toUpperCase().replace(/[^A-Z0-9]/g, "")}_${existingData.uid.substring(0, 4).toUpperCase()}`,
+          trialDaysAdded: existingData.trialDaysAdded ?? 0,
+          subscriptionStatus: existingData.subscriptionStatus ?? "none",
+          premium: existingData.premium ?? (existingData.subscriptionStatus === "Tastiqlandi")
         };
         
         try {
@@ -94,6 +115,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
     setError(null);
 
+    const cleanNickname = nickname.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const generatedPromo = `${cleanNickname}_${tempAuthData.uid.substring(0, 4).toUpperCase()}`;
+
     const newUser: User = {
       uid: tempAuthData.uid,
       email: tempAuthData.email,
@@ -104,7 +128,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       score: 0,
       testsSolved: 0,
       country: country,
-      role: "user" // Default role
+      role: "user", // Default role
+      promoCode: generatedPromo,
+      trialDaysAdded: 0,
+      subscriptionStatus: "none",
+      premium: false
     };
 
     try {
@@ -126,6 +154,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setError(null);
     const mockUid = `dev_uid_${role}_${Math.floor(Math.random() * 1000)}`;
     
+    const cleanNickname = (role === "admin" ? "Admin_Senior" : "Muvaffaqiyatli_Talaba").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const generatedPromo = `${cleanNickname}_${mockUid.substring(mockUid.length - 4).toUpperCase()}`;
+
     const mockUser: User = {
       uid: mockUid,
       email: role === "admin" ? "admin@dtmmaster.uz" : "talaba@dtmmaster.uz",
@@ -138,7 +169,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       score: role === "admin" ? 180.5 : 85.0,
       testsSolved: role === "admin" ? 15 : 2,
       country: "O'zbekiston",
-      role: role
+      role: role,
+      promoCode: generatedPromo,
+      trialDaysAdded: 0,
+      subscriptionStatus: role === "admin" ? "Tastiqlandi" : "none",
+      premium: role === "admin"
     };
 
     // Save developer user in local Firestore for leaderboard consistency
@@ -291,7 +326,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   <ArrowRight className="w-4 h-4 opacity-50" />
                 </button>
                 <button
-                  onClick={() => handleDeveloperLogin("admin")}
+                  onClick={() => {
+                    setAdminPassword("");
+                    setAdminPasswordError(null);
+                    setShowAdminPasswordModal(true);
+                  }}
                   disabled={loading}
                   className="w-full py-2.5 px-4 text-sm font-semibold bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-primary-50 hover:text-primary-600 hover:border-primary-100 transition-all text-left flex justify-between items-center cursor-pointer shadow-2xs"
                 >
@@ -309,6 +348,54 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           </div>
         )}
       </motion.div>
+
+      {/* Admin Password verification modal */}
+      {showAdminPasswordModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 w-full max-w-sm shadow-xl"
+          >
+            <h3 className="font-display font-extrabold text-slate-900 text-xl text-center mb-2">Tizim parolini kiriting</h3>
+            <p className="text-xs text-slate-500 text-center mb-6 font-semibold">Admin panelga kirish uchun maxsus parolni kiriting</p>
+            
+            <form onSubmit={handleVerifyAdminPassword} className="space-y-4">
+              <input
+                type="password"
+                required
+                autoFocus
+                placeholder="Parol"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all outline-none text-center font-bold font-mono tracking-widest text-slate-800"
+              />
+              {adminPasswordError && (
+                <p className="text-xs text-red-500 text-center font-bold bg-red-50 py-2 px-3 rounded-lg">{adminPasswordError}</p>
+              )}
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdminPasswordModal(false);
+                    setAdminPassword("");
+                    setAdminPasswordError(null);
+                  }}
+                  className="flex-1 py-3 text-sm font-semibold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md shadow-primary-500/20 cursor-pointer"
+                >
+                  Kirish
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

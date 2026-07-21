@@ -18,6 +18,11 @@ import ResultScreen from "./pages/ResultScreen";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
+import Notifications from "./pages/Notifications";
+import PremiumBuy from "./pages/PremiumBuy";
+
+// Helpers
+import { hasActiveAccess } from "./lib/premium";
 
 // Components
 import Header from "./components/Header";
@@ -98,6 +103,10 @@ export default function App() {
     setCurrentTab("home");
   };
 
+  const handleUserUpdate = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+  };
+
   const handleLogout = async () => {
     await signOut(auth);
     setCurrentUser(null);
@@ -106,7 +115,7 @@ export default function App() {
     setActiveResults(null);
   };
 
-  // Triggers starting a test with server-side secure randomization or offline client-side fallback
+  // Triggers starting a test securely with server-side generation
   const handleStartTest = async (directionId: string, directionName: string) => {
     if (!currentUser) return;
     try {
@@ -127,19 +136,12 @@ export default function App() {
         setActiveTestSession(testData);
         setCurrentTab("active_test"); // Switch to focus exam screen (Navbar is hidden!)
       } else {
-        const errData = await response.json();
-        console.warn("Backend error starting test, falling back to client-side offline generator:", errData);
-        // Fallback to client-side test generation
-        const clientTestData = generateClientTestSession(directionId, directionName);
-        setActiveTestSession(clientTestData);
-        setCurrentTab("active_test");
+        const errData = await response.json().catch(() => ({}));
+        alert(`Aloqa xatoligi: ${errData.error || "Imtihonni boshlash imkonsiz"}. Tarmoq aloqasini tekshiring.`);
       }
     } catch (err) {
-      console.warn("Network / API connection failed. Initiating secure client-side offline test generator.", err);
-      // Fallback to client-side test generation
-      const clientTestData = generateClientTestSession(directionId, directionName);
-      setActiveTestSession(clientTestData);
-      setCurrentTab("active_test");
+      console.error("Network connection failed during start-test:", err);
+      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
     }
   };
 
@@ -183,11 +185,15 @@ export default function App() {
       {/* 2. Main content container */}
       <main className="flex-grow">
         {currentTab === "home" && (
-          <Home
-            currentUser={currentUser}
-            onStartTest={handleStartTest}
-            setCurrentTab={setCurrentTab}
-          />
+          hasActiveAccess(currentUser) ? (
+            <Home
+              currentUser={currentUser}
+              onStartTest={handleStartTest}
+              setCurrentTab={setCurrentTab}
+            />
+          ) : (
+            <PremiumBuy currentUser={currentUser} isBlocker={true} />
+          )
         )}
 
         {currentTab === "active_test" && activeTestSession && (
@@ -208,7 +214,9 @@ export default function App() {
 
         {currentTab === "ranking" && <Leaderboard />}
 
-        {currentTab === "profile" && <Profile currentUser={currentUser} />}
+        {currentTab === "notifications" && <Notifications currentUser={currentUser} />}
+
+        {currentTab === "profile" && <Profile currentUser={currentUser} onUserUpdate={handleUserUpdate} />}
 
         {currentTab === "admin" && currentUser.role === "admin" && <Admin />}
 

@@ -24,12 +24,13 @@ interface ResultScreenProps {
     timeUsed: string;
     directionName: string;
     passed: boolean;
+    hintsUsed?: number;
   };
   onReturnHome: () => void;
 }
 
 export default function ResultScreen({ currentUser, results, onReturnHome }: ResultScreenProps) {
-  const { score, correctCount, wrongCount, emptyCount, percentage, timeUsed, directionName, passed } = results;
+  const { score, correctCount, wrongCount, emptyCount, percentage, timeUsed, directionName, passed, hintsUsed } = results;
   const [saving, setSaving] = useState(true);
   const [rankingPosition, setRankingPosition] = useState<number>(1);
 
@@ -49,6 +50,7 @@ export default function ResultScreen({ currentUser, results, onReturnHome }: Res
           percentage,
           timeUsed,
           passed,
+          hintsUsed: hintsUsed || 0,
           createdAt: new Date().toISOString()
         };
 
@@ -72,6 +74,7 @@ export default function ResultScreen({ currentUser, results, onReturnHome }: Res
               score,
               correctCount,
               timeUsed,
+              hintsUsed: hintsUsed || 0,
               updatedAt: new Date().toISOString()
             });
           }
@@ -87,10 +90,12 @@ export default function ResultScreen({ currentUser, results, onReturnHome }: Res
             const userData = userDoc.data();
             const currentSolvedCount = (userData.testsSolved || 0) + 1;
             const highestScore = Math.max(userData.score || 0, score);
+            const totalHintsUsed = (userData.hintsUsed || 0) + (hintsUsed || 0);
             
             await setDoc(userRef, {
               testsSolved: currentSolvedCount,
               score: highestScore, // Keep highest score
+              hintsUsed: totalHintsUsed,
               lastLogin: new Date().toISOString()
             }, { merge: true });
           }
@@ -216,6 +221,10 @@ export default function ResultScreen({ currentUser, results, onReturnHome }: Res
             <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl">
               <span className="text-slate-400">Bo'sh qoldirilgan:</span>
               <span className="text-slate-500">{emptyCount} ta</span>
+            </div>
+            <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl col-span-1 md:col-span-2">
+              <span className="text-slate-400">Yordam xizmati (50/50):</span>
+              <span className="text-amber-600 font-bold">{hintsUsed || 0} marta ishlatilgan</span>
             </div>
           </div>
         </div>

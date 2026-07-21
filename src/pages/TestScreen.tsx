@@ -31,6 +31,12 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [activeSubjectFilter, setActiveSubjectFilter] = useState<string>("Barchasi");
 
+  // Help Feature states
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [hiddenOptions, setHiddenOptions] = useState<Record<string, string[]>>({});
+  const [hintLoading, setHintLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   // Format subjects list
   const subjectsList = [
     "Barchasi",
@@ -117,7 +123,45 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
   const currentQuestion = filteredQuestions[currentQuestionIndex] || filteredQuestions[0];
   const absoluteQuestionIndex = questions.findIndex(q => q.id === currentQuestion?.id);
 
-  // Finish test & Calculate score with robust offline fallback
+  // Handle 50-50 Help Feature (💡 Yordam)
+  const handleUseHint = async (qId: string) => {
+    if (hintsUsed >= 3) {
+      alert("Siz barcha 3 ta yordam imkoniyatidan foydalanib bo'ldingiz!");
+      return;
+    }
+
+    setHintLoading(true);
+    try {
+      const res = await fetch("/api/test/use-hint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          testSessionId,
+          questionId: qId,
+          uid: currentUser.uid
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setHiddenOptions(prev => ({
+          ...prev,
+          [qId]: data.optionsToHide
+        }));
+        setHintsUsed(data.hintsUsed);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || "Yordam olishda xatolik yuz berdi. Tarmoqni tekshiring.");
+      }
+    } catch (err) {
+      console.error("Hint usage failed:", err);
+      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
+    } finally {
+      setHintLoading(false);
+    }
+  };
+
+  // Finish test & Calculate score (strictly online only as requested)
   const handleFinishTest = async () => {
     setSavingStatus("saving");
     const timeUsedSeconds = durationSeconds - timeLeft;
@@ -128,7 +172,8 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
         body: JSON.stringify({
           testSessionId,
           uid: currentUser.uid,
-          timeUsedSeconds
+          timeUsedSeconds,
+          hintsUsed
         })
       });
 
@@ -136,14 +181,12 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
         const resultsData = await res.json();
         onFinishTest(resultsData);
       } else {
-        console.warn("Backend error calculating score, falling back to client-side calculator.");
-        const fallbackResults = calculateClientScore(questions, answers, timeUsedSeconds, directionName);
-        onFinishTest(fallbackResults);
+        const errData = await res.json().catch(() => ({}));
+        alert(`Aloqa xatoligi: ${errData.error || "Natijalarni hisoblashda server xatosi"}. Tarmoq aloqasini tekshiring.`);
       }
     } catch (err) {
-      console.warn("Network / API connection failed. Calculating score securely offline.", err);
-      const fallbackResults = calculateClientScore(questions, answers, timeUsedSeconds, directionName);
-      onFinishTest(fallbackResults);
+      console.error("Network connection failed during finish-test:", err);
+      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
     } finally {
       setSavingStatus("idle");
     }
@@ -155,6 +198,10 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
   };
 
   const handleNext = () => {
+    if (currentQuestion && !answers[currentQuestion.id]) {
+      alert("Iltimos, keyingi savolga o'tishdan oldin variantlardan birini tanlang!");
+      return;
+    }
     if (currentQuestionIndex < filteredQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     }
@@ -233,6 +280,10 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
                   <button
                     key={q.id}
                     onClick={() => {
+                      if (currentQuestion && !answers[currentQuestion.id]) {
+                        alert("Iltimos, boshqa savolga o'tishdan oldin joriy savolga javob bering!");
+                        return;
+                      }
                       // Switch tab to the question's subject to ensure it's visible
                       setActiveSubjectFilter("Barchasi");
                       const indexInFiltered = questions.findIndex(item => item.id === q.id);
@@ -281,6 +332,10 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
                 <button
                   key={subj}
                   onClick={() => {
+                    if (currentQuestion && !answers[currentQuestion.id]) {
+                      alert("Iltimos, boshqa bo'limga o'tishdan oldin joriy savolga javob bering!");
+                      return;
+                    }
                     setActiveSubjectFilter(subj);
                     setCurrentQuestionIndex(0); // Reset index for newly selected category filter
                   }}
@@ -331,9 +386,41 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
                 </div>
               )}
 
+              {/* Yordam (Help 50/50) Feature Banner */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-50/70 border border-amber-100 rounded-2xl p-4 shadow-2xs">
+                <div className="flex items-center space-x-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 text-lg font-bold">
+                    💡
+                  </span>
+                  <div>
+                    <h5 className="font-semibold text-slate-800 text-sm">50/50 Yordam xizmati</h5>
+                    <p className="text-xs text-slate-500">2 ta noto'g'ri javobni o'chirib tashlaydi. Imkoniyat: {3 - hintsUsed} / 3 marta</p>
+                  </div>
+                </div>
+                <button
+                  id={`use-hint-btn-${currentQuestion.id}`}
+                  onClick={() => handleUseHint(currentQuestion.id)}
+                  disabled={hintsUsed >= 3 || (hiddenOptions[currentQuestion.id] && hiddenOptions[currentQuestion.id].length > 0) || hintLoading}
+                  className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
+                >
+                  {hintLoading ? (
+                    <span>Yuklanmoqda...</span>
+                  ) : (hiddenOptions[currentQuestion.id] && hiddenOptions[currentQuestion.id].length > 0) ? (
+                    <span>Yordam ishlatildi</span>
+                  ) : hintsUsed >= 3 ? (
+                    <span>Imkoniyatlar tugadi</span>
+                  ) : (
+                    <span>Yordam so'rash</span>
+                  )}
+                </button>
+              </div>
+
               {/* Options Options Selection Block */}
               <div className="space-y-3">
                 {Object.entries(currentQuestion.options).map(([key, value]) => {
+                  const isHidden = hiddenOptions[currentQuestion.id]?.includes(key);
+                  if (isHidden) return null; // hide 2 options completely
+
                   const isSelected = answers[currentQuestion.id] === key;
                   return (
                     <button

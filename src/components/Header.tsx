@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { LogOut, Menu, X, Award, ShieldAlert, User as UserIcon, HelpCircle, Trophy, Home } from "lucide-react";
+import { LogOut, Menu, X, Award, ShieldAlert, User as UserIcon, HelpCircle, Trophy, Home, Bell } from "lucide-react";
 import { User } from "../types";
 
 interface HeaderProps {
@@ -20,6 +20,7 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
   const navItems = [
     { id: "home", label: "Bosh sahifa", icon: Home },
     { id: "ranking", label: "Reyting", icon: Trophy },
+    { id: "notifications", label: "Habarnomalar", icon: Bell },
     { id: "profile", label: "Profil", icon: UserIcon },
     { id: "about", label: "Loyiha haqida", icon: HelpCircle },
   ];

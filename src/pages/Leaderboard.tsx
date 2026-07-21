@@ -172,6 +172,7 @@ export default function Leaderboard() {
                     <th className="py-4 px-6">Abituriyent</th>
                     <th className="py-4 px-6">Tanlagan Yo'nalishi</th>
                     <th className="py-4 px-6 text-center">To'g'ri</th>
+                    <th className="py-4 px-6 text-center">Yordam</th>
                     <th className="py-4 px-6 text-center">Sarf vaqti</th>
                     <th className="py-4 px-6 text-right pr-8">Natija (Ball)</th>
                   </tr>
@@ -205,6 +206,9 @@ export default function Leaderboard() {
                         </td>
                         <td className="py-4 px-6 text-center text-emerald-600">
                           {entry.correctCount || "0"} ta
+                        </td>
+                        <td className="py-4 px-6 text-center text-amber-600 font-bold">
+                          {entry.hintsUsed || 0} marta
                         </td>
                         <td className="py-4 px-6 text-center text-slate-500 font-mono text-xs">
                           {entry.timeUsed || "0:00"}

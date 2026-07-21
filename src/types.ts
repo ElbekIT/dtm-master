@@ -14,6 +14,16 @@ export interface User {
   testsSolved: number;
   country: string;
   role: 'user' | 'admin';
+  hintsUsed?: number;
+  trialDaysAdded?: number;
+  usedPromoCode?: string;
+  promoCode?: string;
+  subscriptionStatus?: 'none' | 'Tekshirilyapti' | 'Tastiqlandi' | 'Tekshirilmadi';
+  subscriptionPlan?: 'haftalik' | 'oylik' | 'yillik';
+  premium?: boolean;
+  premiumUntil?: string;
+  bannedUntil?: string | null;
+  referredBy?: string;
 }
 
 export interface Direction {
@@ -54,6 +64,7 @@ export interface TestSession {
   wrongCount?: number;
   emptyCount?: number;
   timeUsed?: string;
+  hintsUsed?: number;
   createdAt: string;
 }
 
@@ -65,6 +76,7 @@ export interface LeaderboardEntry {
   score: number;
   correctCount: number;
   timeUsed: string;
+  hintsUsed?: number;
   updatedAt: string;
 }
 
@@ -74,3 +86,25 @@ export interface DtmSubject {
   questionsCount: number;
   pointsPerQuestion: number;
 }
+
+export interface Notification {
+  id: string;
+  userId: string; // 'all' or user's uid
+  title: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface Purchase {
+  id: string; // usually user's uid
+  uid: string;
+  nickname: string;
+  email: string | null;
+  plan: 'haftalik' | 'oylik' | 'yillik';
+  price: number;
+  receiptImage: string; // Base64 representation
+  status: 'Tekshirilyapti' | 'Tastiqlandi' | 'Tekshirilmadi';
+  createdAt: string;
+  updatedAt: string;
+}
+
