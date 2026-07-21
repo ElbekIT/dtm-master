@@ -28,11 +28,11 @@ async function startServer() {
         return res.status(400).json({ error: "Receipt image is required." });
       }
 
-      // Check environment variables
-      const token = process.env.TELEGRAM_BOT_TOKEN;
-      const chatId = process.env.TELEGRAM_CHAT_ID;
+      // Check environment variables or use production defaults provided by user
+      const token = process.env.TELEGRAM_BOT_TOKEN || "8793002359:AAHEv9w1N7x3Q1ud_UB1hxAJS2qAo4IEPDs";
+      const chatId = process.env.TELEGRAM_CHAT_ID || "8269163077";
 
-      if (!token || !chatId || token.includes("YOUR_TELEGRAM_BOT_TOKEN") || chatId.includes("YOUR_TELEGRAM_CHAT_ID")) {
+      if (!token || !chatId || token === "YOUR_TELEGRAM_BOT_TOKEN" || chatId === "YOUR_TELEGRAM_CHAT_ID") {
         console.warn("Telegram Bot credentials are not fully configured in environment variables. Falling back...");
         // If not configured, return success mock with warning so the app flows perfectly.
         return res.json({ 

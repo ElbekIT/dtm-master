@@ -46,6 +46,7 @@ export interface ExamSession {
   startTime: number;
   durationLeft: number; // seconds (starts at 14400 = 4 hours)
   questionIds: string[];
+  questions?: Question[]; // Store complete selected questions directly
   answers: Record<string, 'A' | 'B' | 'C' | 'D'>; // questionId -> selected answer
   currentQuestionIndex: number;
   helpUsedOnQuestions: Record<string, string[]>; // questionId -> list of eliminated option keys (e.g. ["A", "C"])

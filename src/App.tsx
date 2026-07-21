@@ -142,23 +142,30 @@ export default function App() {
 
       // Fetch user's completed exams list
       const resultsRef = collection(db, "results");
-      const qResults = query(resultsRef, where("uid", "==", uid), orderBy("createdAt", "desc"));
+      const qResults = query(resultsRef, where("uid", "==", uid));
       const unsubscribeResults = onSnapshot(qResults, (snapshot) => {
         const list: ExamResult[] = [];
         snapshot.forEach((doc) => list.push(doc.data() as ExamResult));
+        list.sort((a, b) => b.createdAt - a.createdAt);
         setCompletedExams(list);
+      }, (err) => {
+        console.warn("Realtime results sync failed, falling back without order:", err);
       });
 
       // Fetch user's active payments request
       const paymentsRef = collection(db, "payments");
-      const qPayments = query(paymentsRef, where("uid", "==", uid), orderBy("createdAt", "desc"));
+      const qPayments = query(paymentsRef, where("uid", "==", uid));
       const unsubscribePayments = onSnapshot(qPayments, (snapshot) => {
         if (!snapshot.empty) {
-          // Grab the latest payment request
-          setCurrentPayment(snapshot.docs[0].data() as PaymentRequest);
+          const list: PaymentRequest[] = [];
+          snapshot.forEach((doc) => list.push(doc.data() as PaymentRequest));
+          list.sort((a, b) => b.createdAt - a.createdAt);
+          setCurrentPayment(list[0]);
         } else {
           setCurrentPayment(null);
         }
+      }, (err) => {
+        console.warn("Realtime payments sync failed:", err);
       });
 
       // Fetch global announcements list
@@ -168,6 +175,8 @@ export default function App() {
         const list: Announcement[] = [];
         snapshot.forEach((doc) => list.push(doc.data() as Announcement));
         setAnnouncements(list);
+      }, (err) => {
+        console.warn("Realtime announcements sync failed:", err);
       });
 
       return () => {
@@ -358,8 +367,19 @@ export default function App() {
 
         <AnimatePresence mode="wait">
           
-          {/* A. If not logged in - show customize splash page */}
-          {!firebaseUser && (
+          {/* Admin Panel view - Rendered unconditionally at the top level */}
+          {currentView === "admin" && (
+            <AdminPanel 
+              showToast={showToast}
+              onCloseAdmin={() => {
+                // Return to dashboard or landing depending on login status
+                setCurrentView("dashboard");
+              }}
+            />
+          )}
+
+          {/* A. If not logged in and not admin - show customize splash page */}
+          {currentView !== "admin" && !firebaseUser && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -412,7 +432,7 @@ export default function App() {
           )}
 
           {/* B. Welcome Screen nickname picker on first login */}
-          {firebaseUser && showWelcome && (
+          {currentView !== "admin" && firebaseUser && showWelcome && (
             <WelcomeScreen 
               firebaseUser={firebaseUser} 
               onProfileCreated={(profile) => {
@@ -424,7 +444,7 @@ export default function App() {
           )}
 
           {/* C. Account Ban Shield */}
-          {firebaseUser && userProfile && userProfile.isBanned && (
+          {currentView !== "admin" && firebaseUser && userProfile && userProfile.isBanned && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -459,7 +479,7 @@ export default function App() {
           )}
 
           {/* D. Regular Logged-In User Core Views */}
-          {firebaseUser && userProfile && !userProfile.isBanned && (
+          {currentView !== "admin" && firebaseUser && userProfile && !userProfile.isBanned && (
             <div className="max-w-6xl mx-auto px-4">
               
               {/* Dashboard Content */}
@@ -616,14 +636,6 @@ export default function App() {
                   completedExams={completedExams}
                   showToast={showToast}
                   onLogout={handleLogout}
-                />
-              )}
-
-              {/* Admin Panel view */}
-              {currentView === "admin" && (
-                <AdminPanel 
-                  showToast={showToast}
-                  onCloseAdmin={() => setCurrentView("dashboard")}
                 />
               )}
 

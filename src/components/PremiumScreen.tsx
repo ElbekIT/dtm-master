@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { doc, setDoc, addDoc, collection } from "firebase/firestore";
+import { doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { PaymentRequest, UserProfile } from "../types";
 import { motion } from "motion/react";
@@ -14,14 +14,18 @@ import {
   Sparkles, 
   Loader,
   TrendingUp,
-  Award
+  Award,
+  Trash2,
+  Zap,
+  HelpCircle,
+  Info
 } from "lucide-react";
 
 interface PremiumScreenProps {
   userProfile: UserProfile;
   currentPayment: PaymentRequest | null;
   showToast: (msg: string, type: "success" | "error" | "info") => void;
-  onPaymentSubmitted: (payment: PaymentRequest) => void;
+  onPaymentSubmitted: (payment: PaymentRequest | null) => void;
 }
 
 export default function PremiumScreen({ userProfile, currentPayment, showToast, onPaymentSubmitted }: PremiumScreenProps) {
@@ -29,6 +33,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const cardNo = "4073420084569577";
@@ -120,6 +125,53 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
     }
   };
 
+  // Drag and drop event handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile) {
+      if (!["image/jpeg", "image/png", "image/jpg"].includes(droppedFile.type)) {
+        showToast("Faqat JPG, JPEG yoki PNG rasm kvitansiyalarini yuklash mumkin.", "error");
+        return;
+      }
+      setFile(droppedFile);
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(droppedFile);
+      showToast("Kvitansiya rasmi muvaffaqiyatli yuklandi!", "success");
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!currentPayment) return;
+    if (window.confirm("Rostdan ham ushbu to'lov so'rovini bekor qilmoqchimisiz?")) {
+      try {
+        await deleteDoc(doc(db, "payments", currentPayment.id));
+        showToast("To'lov so'rovi muvaffaqiyatli bekor qilindi.", "info");
+        onPaymentSubmitted(null);
+        setFile(null);
+        setPreviewUrl(null);
+      } catch (err: any) {
+        showToast(`Bekor qilishda xatolik: ${err.message}`, "error");
+      }
+    }
+  };
+
   const handleSubmitReceipt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
@@ -176,9 +228,9 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
   };
 
   return (
-    <div id="premium-portal" className="max-w-4xl mx-auto px-4 py-8">
+    <div id="premium-portal" className="max-w-4xl mx-auto px-4 py-8 space-y-10">
       {/* Visual Identity Title */}
-      <div className="text-center mb-10">
+      <div className="text-center">
         <h1 className="text-3xl font-extrabold text-white mb-3 font-display">
           Premium Erkinlik
         </h1>
@@ -189,7 +241,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
 
       {/* 1. Show existing payment request status if present */}
       {currentPayment && (
-        <div className="mb-10">
+        <div className="mb-4">
           <div className={`p-6 border rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl ${
             currentPayment.status === "pending" 
               ? "bg-neutral-900 border-amber-500/30 text-amber-500" 
@@ -198,7 +250,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                 : "bg-neutral-900 border-red-500/30 text-red-500"
           }`}>
             <div className="flex items-center gap-4">
-              <div className={`p-3.5 rounded-full border ${
+              <div className={`p-3.5 rounded-full border shrink-0 ${
                 currentPayment.status === "pending" 
                   ? "bg-amber-500/10 border-amber-500/20 text-amber-500" 
                   : currentPayment.status === "approved" 
@@ -214,7 +266,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                 <span className="text-xl font-bold text-white capitalize">
                   {currentPayment.status === "pending" && "Kutilmoqda (Tez orada tasdiqlanadi)"}
                   {currentPayment.status === "approved" && "Tasdiqlangan (Cheksiz kirish ochiq!)"}
-                  {currentPayment.status === "rejected" && "Rad etilgan (To'lov tekshirilgach qayta yuboring)"}
+                  {currentPayment.status === "rejected" && "Rad etilgan (Qayta kvitansiya yuklang)"}
                 </span>
                 <p className="text-xs text-neutral-400 mt-1">
                   Yuborilgan reja: <span className="font-semibold text-white uppercase">{currentPayment.plan}</span> ({currentPayment.amount.toLocaleString()} UZS) — {new Date(currentPayment.createdAt).toLocaleString()}
@@ -222,17 +274,28 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
               </div>
             </div>
 
-            {currentPayment.status === "rejected" && (
-              <button 
-                onClick={() => {
-                  // Allow trying again
-                  location.reload();
-                }}
-                className="px-5 py-2.5 bg-neutral-950 border border-neutral-800 text-neutral-300 rounded-xl hover:bg-neutral-800 hover:text-white transition-all text-xs font-semibold"
-              >
-                Qayta Yuborish
-              </button>
-            )}
+            <div className="flex gap-3">
+              {currentPayment.status === "pending" && (
+                <button 
+                  onClick={handleCancelRequest}
+                  className="px-5 py-2.5 bg-red-950/20 hover:bg-red-950/80 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>So'rovni bekor qilish</span>
+                </button>
+              )}
+
+              {currentPayment.status === "rejected" && (
+                <button 
+                  onClick={() => {
+                    location.reload();
+                  }}
+                  className="px-5 py-2.5 bg-neutral-950 border border-neutral-850 text-neutral-300 rounded-xl hover:bg-neutral-800 hover:text-white transition-all text-xs font-semibold"
+                >
+                  Qayta Yuborish
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -241,34 +304,37 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
       {(!currentPayment || currentPayment.status !== "approved") && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           {/* Plan Selector (Left side) */}
-          <div className="lg:col-span-3 space-y-4">
-            <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider mb-2">Obuna Rejasini Tanlang</h3>
-            
-            {(Object.keys(plans) as Array<'weekly' | 'monthly' | 'yearly'>).map((planKey) => {
-              const p = plans[planKey];
-              const isSelected = selectedPlan === planKey;
+          <div className="lg:col-span-3 space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider">Obuna Rejasini Tanlang</h3>
+              
+              {(Object.keys(plans) as Array<'weekly' | 'monthly' | 'yearly'>).map((planKey) => {
+                const p = plans[planKey];
+                const isSelected = selectedPlan === planKey;
 
-              return (
-                <button
-                  key={planKey}
-                  onClick={() => setSelectedPlan(planKey)}
-                  className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between gap-4 transition-all focus:outline-none ${
-                    isSelected 
-                      ? "bg-amber-500/10 border-amber-500 text-white" 
-                      : "bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-300"
-                  }`}
-                >
-                  <div className="flex-1">
-                    <span className="text-base font-bold block">{p.name}</span>
-                    <span className="text-xs text-neutral-500 mt-1 block leading-relaxed">{p.desc}</span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-xl font-extrabold text-white">{p.price.toLocaleString()} UZS</span>
-                    <span className="text-xs text-neutral-500 block">/ {p.period}</span>
-                  </div>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={planKey}
+                    type="button"
+                    onClick={() => setSelectedPlan(planKey)}
+                    className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between gap-4 transition-all focus:outline-none ${
+                      isSelected 
+                        ? "bg-amber-500/10 border-amber-500 text-white" 
+                        : "bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-300"
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <span className="text-base font-bold block">{p.name}</span>
+                      <span className="text-xs text-neutral-500 mt-1 block leading-relaxed">{p.desc}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xl font-extrabold text-white">{p.price.toLocaleString()} UZS</span>
+                      <span className="text-xs text-neutral-500 block">/ {p.period}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Core Card Details Card */}
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-md">
@@ -287,6 +353,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                     <span className="text-lg font-mono font-bold text-amber-500 tracking-wider">{cardNo}</span>
                   </div>
                   <button
+                    type="button"
                     onClick={copyCard}
                     className="p-2.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg transition-all"
                   >
@@ -298,67 +365,171 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
           </div>
 
           {/* Receipt Uploader form (Right side) */}
-          <div className="lg:col-span-2">
-            <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider mb-4">To'lov Kvitansiyasi</h3>
-            
-            <form onSubmit={handleSubmitReceipt} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-md space-y-6">
-              <div className="space-y-2">
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  To'lovni amalga oshirgach, chek/kvitansiya nusxasini rasm formatida (JPG, PNG) yuklang:
-                </p>
-                
-                {/* Drag-and-drop / manual trigger frame */}
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-neutral-800 hover:border-amber-500/40 rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all bg-neutral-950"
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/png, image/jpeg, image/jpg"
-                    className="hidden"
-                  />
-                  {previewUrl ? (
-                    <img 
-                      src={previewUrl} 
-                      alt="Receipt preview" 
-                      referrerPolicy="no-referrer"
-                      className="max-h-[140px] rounded-lg border border-neutral-800 object-contain" 
+          <div className="lg:col-span-2 space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider">To'lov Kvitansiyasi</h3>
+              
+              <form onSubmit={handleSubmitReceipt} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-md space-y-6">
+                <div className="space-y-3">
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Karta raqamiga to'lov qilgach, chek yoki kvitansiya rasmini quyidagi maydonga tashlang yoki bosing:
+                  </p>
+                  
+                  {/* Drag-and-drop / manual trigger frame */}
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all bg-neutral-950 min-h-[180px] ${
+                      isDragging 
+                        ? "border-amber-500 bg-amber-500/5" 
+                        : "border-neutral-800 hover:border-amber-500/40"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept="image/png, image/jpeg, image/jpg"
+                      className="hidden"
                     />
-                  ) : (
-                    <div className="p-3 bg-neutral-900 rounded-full border border-neutral-800 text-neutral-500">
-                      <Upload className="w-6 h-6" />
-                    </div>
-                  )}
-                  <span className="text-xs text-neutral-400 font-medium">
-                    {file ? file.name : "Kvitansiya rasmini yuklash"}
-                  </span>
-                  <span className="text-[10px] text-neutral-600">Faqat JPG, JPEG, PNG</span>
+                    {previewUrl ? (
+                      <div className="relative group w-full flex justify-center">
+                        <img 
+                          src={previewUrl} 
+                          alt="Receipt preview" 
+                          referrerPolicy="no-referrer"
+                          className="max-h-[140px] rounded-lg border border-neutral-800 object-contain" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-3.5 bg-neutral-900 rounded-full border border-neutral-850 text-neutral-400">
+                        <Upload className="w-6 h-6" />
+                      </div>
+                    )}
+                    <span className="text-xs text-neutral-300 font-bold text-center">
+                      {file ? file.name : "Kvitansiya rasmini yuklang"}
+                    </span>
+                    <span className="text-[10px] text-neutral-500 text-center">
+                      Faqat JPG, JPEG, PNG formatlari (Maks. 10MB)
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || !file}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-neutral-800 text-neutral-950 disabled:text-neutral-600 font-bold rounded-xl transition-all shadow-md shadow-amber-500/5 flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader className="w-5 h-5 animate-spin" />
-                    <span>Yuborilmoqda...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-5 h-5" />
-                    <span>Kvitansiyani submit qilish</span>
-                  </>
-                )}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !file}
+                  className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 disabled:bg-neutral-800 text-neutral-950 disabled:text-neutral-600 font-extrabold rounded-xl transition-all shadow-md shadow-amber-500/5 flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader className="w-5 h-5 animate-spin" />
+                      <span>Tasdiqlanmoqda...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-5 h-5 shrink-0" />
+                      <span>Kvitansiyani yuborish</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
+
+      {/* 3. Premium Benefits Grid (Aesthetics & value proposition) */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-500">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">Nega DTM MASTER Premium?</h3>
+            <p className="text-xs text-neutral-400">Tayyorgarligingizni sifatli darajaga ko'taruvchi unikal imkoniyatlar ro'yxati</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+          <div className="flex items-start gap-3">
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Cheksiz DTM Imtihonlar</h4>
+              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Har bir fan kesimidagi professional shuffllangan unikal savollar bazasi to'liq ochiq bo'ladi.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Tahlillar va xatolar ustida ishlash</h4>
+              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Siz topshirgan har bir imtihonning xatolari ustida tahlillarga kirish va o'rganish imkoniyati.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Reyting va Statistika</h4>
+              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Sizning eng yuqori natijalaringiz real vaqtda butun O'zbekiston miqyosida reytingda aks etadi.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">50:50 Yordam Imkoniyatlari</h4>
+              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Savollarga qiynalganda noto'g'ri variantlarni cheksiz o'chirish lifelaynlari faollashadi.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Tezkor Yordam xizmati</h4>
+              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">To'lovingiz Telegram bot orqali real vaqtda tekshirilib, o'rtacha 5-10 daqiqada tasdiqlanadi.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-white">Reklamasiz Interfeys</h4>
+              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Dars o'tishda chalg'ituvchi har qanday cheklov va reklamalardan mutlaqo xoli toza interfeys.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Tester/Developer Interactive helper block */}
+      <div className="bg-neutral-900/60 border border-neutral-800/60 rounded-2xl p-5 flex items-start gap-4">
+        <div className="p-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl shrink-0">
+          <Info className="w-5 h-5" />
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs font-bold text-white uppercase block">Ishlab chiquvchi va Testerlar uchun ko'rsatma:</span>
+          <p className="text-xs text-neutral-400 leading-relaxed">
+            Sinov rejimida to'lovingizni bir zumda tasdiqlash va Premium imkoniyatlarini sinab ko'rish uchun pastki paneldagi 
+            <span className="text-amber-500 font-semibold mx-1">"Admin kirish"</span> havolasini bosing va maxfiy parolni kiriting: 
+            <span className="text-white bg-neutral-950 border border-neutral-800 px-2 py-0.5 rounded font-mono text-xs ml-1 font-bold">79178195327178195327</span>. 
+            So'ngra "To'lov so'rovlari" bo'limidan yuborilgan kvitansiyani yashil chek belgisi orqali faollashtiring.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

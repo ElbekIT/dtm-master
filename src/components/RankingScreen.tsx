@@ -29,21 +29,33 @@ export default function RankingScreen({ currentUserProfile, showToast }: Ranking
     // No mock users, only real users sorted strictly by Highest Score, lowest Time, lowest help used
     const usersRef = collection(db, "users");
     
-    // Set up snapshot listener for instant real-time sync across all clients!
-    const q = query(
-      usersRef,
-      orderBy("highestScore", "desc"),
-      orderBy("lowestTime", "asc"),
-      orderBy("helpUsedTotal", "asc"),
-      limit(100) // Top 100 leaders
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // Query without compound sorting to avoid index requirements
+    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
       const list: UserProfile[] = [];
       snapshot.forEach((doc) => {
-        list.push(doc.data() as UserProfile);
+        const u = doc.data() as UserProfile;
+        if (u.examCount && u.examCount > 0) {
+          list.push(u);
+        }
       });
-      setRankings(list);
+
+      // Sort client-side on multiple fields flawlessly
+      list.sort((a, b) => {
+        // 1. Highest Score (descending)
+        if (b.highestScore !== a.highestScore) {
+          return b.highestScore - a.highestScore;
+        }
+        // 2. Lowest Time spent (ascending)
+        const aTime = a.lowestTime || 999999;
+        const bTime = b.lowestTime || 999999;
+        if (aTime !== bTime) {
+          return aTime - bTime;
+        }
+        // 3. Help Used Total (ascending)
+        return (a.helpUsedTotal || 0) - (b.helpUsedTotal || 0);
+      });
+
+      setRankings(list.slice(0, 100));
       setIsLoading(false);
     }, (error) => {
       console.error("Realtime ranking subscription error:", error);

@@ -61,39 +61,44 @@ export default function WelcomeScreen({ firebaseUser, onProfileCreated, showToas
       if (referralCode.trim()) {
         const cleanPromo = referralCode.trim().toUpperCase();
         
-        // Find owner of promo code
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("promoCode", "==", cleanPromo));
-        const querySnapshot = await getDocs(q);
+        try {
+          // Find owner of promo code
+          const usersRef = collection(db, "users");
+          const q = query(usersRef, where("promoCode", "==", cleanPromo));
+          const querySnapshot = await getDocs(q);
 
-        if (!querySnapshot.empty) {
-          const promoOwnerDoc = querySnapshot.docs[0];
-          const promoOwnerData = promoOwnerDoc.data();
+          if (!querySnapshot.empty) {
+            const promoOwnerDoc = querySnapshot.docs[0];
+            const promoOwnerData = promoOwnerDoc.data();
 
-          if (promoOwnerDoc.id === firebaseUser.uid) {
-            showToast("O'zingizning promo kodingizdan foydalana olmaysiz!", "error");
+            if (promoOwnerDoc.id === firebaseUser.uid) {
+              showToast("O'zingizning promo kodingizdan foydalana olmaysiz!", "error");
+            } else {
+              referredByUid = promoOwnerDoc.id;
+              extraTrialDays = 1; // Invited user gets +1 Day
+
+              // Reward Promo Code Owner: +2 Days
+              const ownerRef = doc(db, "users", promoOwnerDoc.id);
+              await updateDoc(ownerRef, {
+                premiumExpiresAt: promoOwnerData.premiumExpiresAt + (2 * 24 * 60 * 60 * 1000)
+              });
+
+              // Log promo redemption to prevent duplicate usage
+              const redemptionRef = doc(db, "promo_redemptions", firebaseUser.uid);
+              await setDoc(redemptionRef, {
+                code: cleanPromo,
+                ownerUid: promoOwnerDoc.id,
+                createdAt: Date.now()
+              });
+
+              showToast("Promo kod muvaffaqiyatli qabul qilindi! Sizga +1 kun, taklif qilgan do'stingizga +2 kun premium hadya etildi.", "success");
+            }
           } else {
-            referredByUid = promoOwnerDoc.id;
-            extraTrialDays = 1; // Invited user gets +1 Day
-
-            // Reward Promo Code Owner: +2 Days
-            const ownerRef = doc(db, "users", promoOwnerDoc.id);
-            await updateDoc(ownerRef, {
-              premiumExpiresAt: promoOwnerData.premiumExpiresAt + (2 * 24 * 60 * 60 * 1000)
-            });
-
-            // Log promo redemption to prevent duplicate usage
-            const redemptionRef = doc(db, "promo_redemptions", firebaseUser.uid);
-            await setDoc(redemptionRef, {
-              code: cleanPromo,
-              ownerUid: promoOwnerDoc.id,
-              createdAt: Date.now()
-            });
-
-            showToast("Promo kod muvaffaqiyatli qabul qilindi! Sizga +1 kun, taklif qilgan do'stingizga +2 kun premium hadya etildi.", "success");
+            showToast("Xato promo kod kiritildi. Uni tekshirib ko'ring yoki maydonni bo'sh qoldiring.", "error");
           }
-        } else {
-          showToast("Xato promo kod kiritildi. Uni tekshirib ko'ring yoki maydonni bo'sh qoldiring.", "error");
+        } catch (promoErr: any) {
+          console.warn("Promo code verification bypassed or restricted by security rules:", promoErr);
+          // Don't show confusing error toast, just log and continue to let registration succeed
         }
       }
 

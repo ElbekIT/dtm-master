@@ -85,14 +85,22 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
       }
     } catch (e) {
       console.warn("Connection verification ping failed:", e);
-      setPingFailedCount(prev => {
-        const next = prev + 1;
-        if (next >= 2 && isOnline) {
-          setIsOnline(false);
-          showToast("Tarmoq xatoligi. Serverga ulanib bo'lmadi. Tarmoq aloqasini tekshiring.", "error");
+      // Fallback: If browser says online, keep isOnline true to bypass local iframe CORS/reverse-proxy issues
+      if (window.navigator.onLine) {
+        if (!isOnline) {
+          setIsOnline(true);
         }
-        return next;
-      });
+        setPingFailedCount(0);
+      } else {
+        setPingFailedCount(prev => {
+          const next = prev + 1;
+          if (next >= 2 && isOnline) {
+            setIsOnline(false);
+            showToast("Tarmoq xatoligi. Serverga ulanib bo'lmadi. Tarmoq aloqasini tekshiring.", "error");
+          }
+          return next;
+        });
+      }
     }
   };
 
@@ -114,25 +122,24 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
         // Load existing active session
         const activeSession = docSnap.data() as ExamSession;
         
-        // Fetch questions for this session. Since we stored the question IDs,
-        // we can fetch or rebuild them. To satisfy "store selected question IDs and avoid regenerating on refresh",
-        // we store the questions list inside the session or rebuild them deterministically from the main pool.
-        // Let's store/retrieve questions from a session-specific list, or rebuild based on saved IDs.
-        // Let's look up questions from our pool matching the IDs.
-        const poolQuestions = generateDtmExamQuestions(); // Generates shuffled, but we find matching IDs
-        const sessionQuestions = activeSession.questionIds.map(id => {
-          // Find standard, or if it's programmatically synthesized, construct/rebuild it deterministically
-          const found = poolQuestions.find(q => q.id === id);
-          if (found) return found;
-          // Fallback if not found in current session generation
-          return {
-            id,
-            subject: "Matematika",
-            questionText: "Savolni yuklashda xatolik yuz berdi. Iltimos, keyingi savolga o'ting.",
-            options: { A: "A", B: "B", C: "C", D: "D" },
-            correctAnswer: "A" as const
-          };
-        });
+        let sessionQuestions: Question[] = [];
+        if (activeSession.questions && activeSession.questions.length > 0) {
+          sessionQuestions = activeSession.questions;
+        } else {
+          // Fallback if older session didn't save questions inside document
+          const poolQuestions = generateDtmExamQuestions();
+          sessionQuestions = activeSession.questionIds.map(id => {
+            const found = poolQuestions.find(q => q.id === id);
+            if (found) return found;
+            return {
+              id,
+              subject: "Matematika",
+              questionText: "Savolni yuklashda xatolik yuz berdi. Iltimos, keyingi savolga o'ting.",
+              options: { A: "A", B: "B", C: "C", D: "D" },
+              correctAnswer: "A" as const
+            };
+          });
+        }
 
         setQuestions(sessionQuestions);
         setSession(activeSession);
@@ -148,10 +155,11 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
           startTime: Date.now(),
           durationLeft: 14400, // 4 hours in seconds
           questionIds,
+          questions: newQuestions, // Store them directly in firestore!
           answers: {},
           currentQuestionIndex: 0,
           helpUsedOnQuestions: {},
-          helpChancesLeft: userProfile.helpChances // start with user's permanent chances left
+          helpChancesLeft: userProfile.helpChances !== undefined ? userProfile.helpChances : 3
         };
 
         await setDoc(doc(db, "exams", userProfile.uid), newSession);
@@ -396,7 +404,7 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
     }
   };
 
-  if (isLoading || !session) {
+  if (isLoading || !session || !questions || questions.length === 0 || !questions[session.currentQuestionIndex]) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <RefreshCw className="w-10 h-10 text-amber-500 animate-spin" />
