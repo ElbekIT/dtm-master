@@ -78,13 +78,43 @@ export default function Admin() {
       const bannedData = bannedRes.ok ? await bannedRes.json() : { banned: [] };
       setBannedUids(bannedData.banned);
 
-      // 3. Fetch users from Firestore
-      const usersSnap = await getDocs(collection(db, "users"));
-      const uList: User[] = [];
-      usersSnap.forEach((doc) => {
-        uList.push(doc.data() as User);
+      // 3. Fetch users from Firestore and local server database
+      let uList: User[] = [];
+      try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        usersSnap.forEach((doc) => {
+          uList.push(doc.data() as User);
+        });
+      } catch (err) {
+        console.warn("Failed to fetch users from Firestore, using fallback:", err);
+      }
+
+      let serverUsers: User[] = [];
+      try {
+        const sRes = await fetch("/api/admin/users");
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          serverUsers = sData.users || [];
+        }
+      } catch (err) {
+        console.error("Failed to fetch server-side users list:", err);
+      }
+
+      // Merge Firestore users and server users by uid to be 100% complete
+      const mergedUsersMap: Record<string, User> = {};
+      serverUsers.forEach((u) => {
+        if (u && u.uid) {
+          mergedUsersMap[u.uid] = u;
+        }
       });
-      setUsersList(uList);
+      uList.forEach((u) => {
+        if (u && u.uid) {
+          mergedUsersMap[u.uid] = { ...(mergedUsersMap[u.uid] || {}), ...u };
+        }
+      });
+
+      const finalUsersList = Object.values(mergedUsersMap);
+      setUsersList(finalUsersList);
 
       // 4. Fetch purchases from Firestore
       const purchasesQuery = query(collection(db, "purchases"), orderBy("createdAt", "desc"));
@@ -98,7 +128,7 @@ export default function Admin() {
       const pendingCount = pList.filter(p => p.status === "Tekshirilyapti").length;
 
       setStats({
-        totalUsers: uList.length,
+        totalUsers: finalUsersList.length,
         totalTestsStarted: statsData.totalTestsStarted || 0,
         activeSessionsCount: statsData.activeSessionsCount || 0,
         completedSessionsCount: statsData.completedSessionsCount || 0,
@@ -176,7 +206,7 @@ export default function Admin() {
     }
   };
 
-  // Delete user from Firestore
+  // Delete user from Firestore and server database
   const handleDeleteUser = async (uid: string) => {
     if (!confirm("Haqiqatdan ham ushbu foydalanuvchini butunlay o'chirib yubormoqchimisiz?")) return;
     try {
@@ -185,6 +215,13 @@ export default function Admin() {
       try {
         await deleteDoc(doc(db, "purchases", uid));
       } catch (_) {}
+
+      // Delete from server database as well
+      try {
+        await fetch(`/api/admin/users/${uid}`, { method: "DELETE" });
+      } catch (err) {
+        console.warn("Failed to delete user from server database:", err);
+      }
 
       alert("Foydalanuvchi muvaffaqiyatli o'chirildi.");
       loadAdminData();
@@ -210,11 +247,23 @@ export default function Admin() {
       }, { merge: true });
 
       // 2. Update user premium states in Firestore
-      await setDoc(doc(db, "users", purchase.uid), {
+      const userUpdateFields = {
         premium: true,
         subscriptionStatus: "Tastiqlandi",
         premiumUntil: premiumUntilDate.toISOString()
-      }, { merge: true });
+      };
+      await setDoc(doc(db, "users", purchase.uid), userUpdateFields, { merge: true });
+
+      // Sync with server database
+      try {
+        await fetch("/api/users/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uid: purchase.uid, ...userUpdateFields })
+        });
+      } catch (err) {
+        console.warn("Failed to sync premium state to server:", err);
+      }
 
       // 3. Dispatch congratulations Notification to the student
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
@@ -245,9 +294,21 @@ export default function Admin() {
       }, { merge: true });
 
       // 2. Update user subscriptionStatus in Firestore
-      await setDoc(doc(db, "users", purchase.uid), {
+      const userUpdateFields = {
         subscriptionStatus: "Tekshirilmadi"
-      }, { merge: true });
+      };
+      await setDoc(doc(db, "users", purchase.uid), userUpdateFields, { merge: true });
+
+      // Sync with server database
+      try {
+        await fetch("/api/users/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uid: purchase.uid, ...userUpdateFields })
+        });
+      } catch (err) {
+        console.warn("Failed to sync rejection state to server:", err);
+      }
 
       // 3. Dispatch correction request Notification to the student
       const notifId = `notif_${purchase.uid}_${Date.now()}`;

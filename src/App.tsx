@@ -54,6 +54,18 @@ export default function App() {
     passed: boolean;
   } | null>(null);
 
+  const syncUserWithBackend = async (user: User) => {
+    try {
+      await fetch("/api/users/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(user)
+      });
+    } catch (err) {
+      console.error("Failed to sync user state to backend:", err);
+    }
+  };
+
   // Monitor Authentication state
   useEffect(() => {
     let active = true;
@@ -74,7 +86,9 @@ export default function App() {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
-            setCurrentUser(userDoc.data() as User);
+            const userData = userDoc.data() as User;
+            setCurrentUser(userData);
+            syncUserWithBackend(userData);
           } else {
             // First time login - clean reset to trigger signup nickname step in Login page
             setCurrentUser(null);
@@ -100,11 +114,13 @@ export default function App() {
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
+    syncUserWithBackend(user);
     setCurrentTab("home");
   };
 
   const handleUserUpdate = (updatedUser: User) => {
     setCurrentUser(updatedUser);
+    syncUserWithBackend(updatedUser);
   };
 
   const handleLogout = async () => {

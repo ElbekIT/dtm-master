@@ -96,7 +96,12 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
     const cleanInput = promoInput.trim().toUpperCase();
     if (!cleanInput) return;
 
-    if (cleanInput === currentUser.promoCode) {
+    if (currentUser.referredBy) {
+      setPromoError("Siz allaqachon promo kod faollashtirgansiz!");
+      return;
+    }
+
+    if (cleanInput === (currentUser.promoCode || "").trim().toUpperCase()) {
       setPromoError("O'zingizning promo kodingizni ishlata olmaysiz!");
       return;
     }
@@ -123,6 +128,12 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
 
       if (!referrerDoc) {
         setPromoError("Xatolik yuz berdi. Qayta urinib ko'ring.");
+        setPromoLoading(false);
+        return;
+      }
+
+      if (referrerDoc.uid === currentUser.uid) {
+        setPromoError("O'zingizning promo kodingizni ishlata olmaysiz!");
         setPromoLoading(false);
         return;
       }

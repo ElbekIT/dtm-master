@@ -318,14 +318,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                   <span>PREVIEW SINOV INTERFEYSI</span>
                 </div>
                 <button
-                  onClick={() => handleDeveloperLogin("user")}
-                  disabled={loading}
-                  className="w-full py-2.5 px-4 text-sm font-semibold bg-white text-slate-700 border border-slate-200 rounded-xl hover:bg-primary-50 hover:text-primary-600 hover:border-primary-100 transition-all text-left flex justify-between items-center cursor-pointer shadow-2xs"
-                >
-                  <span>Abituriyent sifatida kirish</span>
-                  <ArrowRight className="w-4 h-4 opacity-50" />
-                </button>
-                <button
                   onClick={() => {
                     setAdminPassword("");
                     setAdminPasswordError(null);

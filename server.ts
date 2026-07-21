@@ -40,6 +40,42 @@ try {
   console.error("Error loading question bank:", error);
 }
 
+// Persistent users database on the server side
+let usersListLocal: any[] = [];
+const usersDbPath = path.join(process.cwd(), "server", "users_db.json");
+
+function saveUsersDb() {
+  try {
+    const parentDir = path.dirname(usersDbPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    fs.writeFileSync(usersDbPath, JSON.stringify({ users: usersListLocal }, null, 2));
+  } catch (err) {
+    console.error("Failed to write users database file:", err);
+  }
+}
+
+try {
+  if (fs.existsSync(usersDbPath)) {
+    const rawData = fs.readFileSync(usersDbPath, "utf-8");
+    usersListLocal = JSON.parse(rawData).users || [];
+    
+    // Restore in-memory bans from users_db
+    const now = Date.now();
+    usersListLocal.forEach((u: any) => {
+      if (u.bannedUntil) {
+        if (u.bannedUntil === "permanent" || new Date(u.bannedUntil).getTime() > now) {
+          bannedUsers.add(u.uid);
+          userBans[u.uid] = u.bannedUntil;
+        }
+      }
+    });
+  }
+} catch (error) {
+  console.error("Error loading users database:", error);
+}
+
 // Fisher-Yates Shuffle Algorithm to randomize arrays
 function shuffleArray<T>(array: T[]): T[] {
   const copy = [...array];
@@ -408,116 +444,121 @@ function deduplicateQuestionOptions(q: any): any {
 
 // 1. Dynamic Test Creation Endpoint
 app.post("/api/test/start", (req, res) => {
-  const { uid, directionId, directionName } = req.body;
+  try {
+    const { uid, directionId, directionName } = req.body;
 
-  if (!uid || !directionId || !directionName) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  const nowTime = Date.now();
-  const banExpiry = userBans[uid];
-  if (banExpiry) {
-    if (banExpiry === "permanent" || new Date(banExpiry).getTime() > nowTime) {
-      return res.status(403).json({ error: `Sizning hisobingiz admin tomonidan bloklangan! Blok muddati: ${banExpiry === "permanent" ? "Umrbod" : new Date(banExpiry).toLocaleString()}` });
-    } else {
-      bannedUsers.delete(uid);
-      delete userBans[uid];
-    }
-  }
-  if (bannedUsers.has(uid)) {
-    return res.status(403).json({ error: "Sizning hisobingiz admin tomonidan bloklangan!" });
-  }
-
-  const testSessionId = `test_session_${uid}_${Date.now()}`;
-
-  // Subject distribution
-  const distribution = [
-    { name: "Mathematics", count: 20 },
-    { name: "Physics", count: 15 },
-    { name: "Native Language", count: 15 },
-    { name: "History of Uzbekistan", count: 15 },
-    { name: "Mandatory Mathematics", count: 10 },
-    { name: "Professional Subject", count: 15 }
-  ];
-
-  const finalQuestions: any[] = [];
-
-  distribution.forEach((dist) => {
-    // 1. Find matching questions in static bank
-    let matching = questionBank.filter(q => 
-      q.subject === dist.name && 
-      (!q.direction || q.direction === directionName)
-    );
-
-    // 2. Shuffle matched questions
-    matching = shuffleArray(matching);
-
-    // 3. Take up to count
-    let selected = matching.slice(0, dist.count);
-
-    // 4. If not enough questions in static bank, dynamically generate high quality procedurally randomized variants
-    let needed = dist.count - selected.length;
-    for (let i = 0; i < needed; i++) {
-      selected.push(generateDynamicQuestion(dist.name, directionName, i));
+    if (!uid || !directionId || !directionName) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
-    finalQuestions.push(...selected);
-  });
-
-  // CRITICAL FIX: Deep-clone questions using JSON parse/stringify to prevent mutating original templates!
-  const clonedQuestions = finalQuestions.map(q => JSON.parse(JSON.stringify(q)));
-
-  // Fully randomize the 90 questions overall order using Fisher-Yates
-  const fullyRandomizedQuestions = shuffleArray(clonedQuestions);
-
-  // Randomize option order and deduplicate them for each question securely on server-side
-  const preppedQuestionsForClient = fullyRandomizedQuestions.map((q) => {
-    // Deduplicate options first to ensure none are identical
-    deduplicateQuestionOptions(q);
-
-    // Save correct answer value before shuffling keys
-    const correctVal = q.options[q.correctAnswer];
-    const optionPairs = Object.entries(q.options);
-    const shuffledPairs = shuffleArray(optionPairs);
-
-    const newOptions: Record<string, string> = {};
-    let newCorrectAnswerKey = "A";
-
-    shuffledPairs.forEach(([oldKey, value], idx) => {
-      const newKey = ["A", "B", "C", "D"][idx];
-      newOptions[newKey] = value as string;
-      if (value === correctVal) {
-        newCorrectAnswerKey = newKey;
+    const nowTime = Date.now();
+    const banExpiry = userBans[uid];
+    if (banExpiry) {
+      if (banExpiry === "permanent" || new Date(banExpiry).getTime() > nowTime) {
+        return res.status(403).json({ error: `Sizning hisobingiz admin tomonidan bloklangan! Blok muddati: ${banExpiry === "permanent" ? "Umrbod" : new Date(banExpiry).toLocaleString()}` });
+      } else {
+        bannedUsers.delete(uid);
+        delete userBans[uid];
       }
+    }
+    if (bannedUsers.has(uid)) {
+      return res.status(403).json({ error: "Sizning hisobingiz admin tomonidan bloklangan!" });
+    }
+
+    const testSessionId = `test_session_${uid}_${Date.now()}`;
+
+    // Subject distribution
+    const distribution = [
+      { name: "Mathematics", count: 20 },
+      { name: "Physics", count: 15 },
+      { name: "Native Language", count: 15 },
+      { name: "History of Uzbekistan", count: 15 },
+      { name: "Mandatory Mathematics", count: 10 },
+      { name: "Professional Subject", count: 15 }
+    ];
+
+    const finalQuestions: any[] = [];
+
+    distribution.forEach((dist) => {
+      // 1. Find matching questions in static bank
+      let matching = questionBank.filter(q => 
+        q.subject === dist.name && 
+        (!q.direction || q.direction === directionName)
+      );
+
+      // 2. Shuffle matched questions
+      matching = shuffleArray(matching);
+
+      // 3. Take up to count
+      let selected = matching.slice(0, dist.count);
+
+      // 4. If not enough questions in static bank, dynamically generate high quality procedurally randomized variants
+      let needed = dist.count - selected.length;
+      for (let i = 0; i < needed; i++) {
+        selected.push(generateDynamicQuestion(dist.name, directionName, i));
+      }
+
+      finalQuestions.push(...selected);
     });
 
-    // Update session store copy with correct scrambled key
-    q.options = newOptions;
-    q.correctAnswer = newCorrectAnswerKey;
+    // CRITICAL FIX: Deep-clone questions using JSON parse/stringify to prevent mutating original templates!
+    const clonedQuestions = finalQuestions.map(q => JSON.parse(JSON.stringify(q)));
 
-    // Return sanitized copy for client side (DO NOT leak the correctAnswer!)
-    const { correctAnswer, ...clientQuestion } = q;
-    return clientQuestion;
-  });
+    // Fully randomize the 90 questions overall order using Fisher-Yates
+    const fullyRandomizedQuestions = shuffleArray(clonedQuestions);
 
-  // Store active session on server with secure answers
-  activeSessions[testSessionId] = {
-    id: testSessionId,
-    uid,
-    directionId,
-    directionName,
-    startTime: Date.now(),
-    questions: fullyRandomizedQuestions, // keeps correct answers inside
-    answers: {},
-    completed: false
-  };
+    // Randomize option order and deduplicate them for each question securely on server-side
+    const preppedQuestionsForClient = fullyRandomizedQuestions.map((q) => {
+      // Deduplicate options first to ensure none are identical
+      deduplicateQuestionOptions(q);
 
-  res.json({
-    testSessionId,
-    directionName,
-    durationSeconds: 14400, // 4 hours
-    questions: preppedQuestionsForClient
-  });
+      // Save correct answer value before shuffling keys
+      const correctVal = q.options[q.correctAnswer];
+      const optionPairs = Object.entries(q.options);
+      const shuffledPairs = shuffleArray(optionPairs);
+
+      const newOptions: Record<string, string> = {};
+      let newCorrectAnswerKey = "A";
+
+      shuffledPairs.forEach(([oldKey, value], idx) => {
+        const newKey = ["A", "B", "C", "D"][idx];
+        newOptions[newKey] = value as string;
+        if (value === correctVal) {
+          newCorrectAnswerKey = newKey;
+        }
+      });
+
+      // Update session store copy with correct scrambled key
+      q.options = newOptions;
+      q.correctAnswer = newCorrectAnswerKey;
+
+      // Return sanitized copy for client side (DO NOT leak the correctAnswer!)
+      const { correctAnswer, ...clientQuestion } = q;
+      return clientQuestion;
+    });
+
+    // Store active session on server with secure answers
+    activeSessions[testSessionId] = {
+      id: testSessionId,
+      uid,
+      directionId,
+      directionName,
+      startTime: Date.now(),
+      questions: fullyRandomizedQuestions, // keeps correct answers inside
+      answers: {},
+      completed: false
+    };
+
+    res.json({
+      testSessionId,
+      directionName,
+      durationSeconds: 14400, // 4 hours
+      questions: preppedQuestionsForClient
+    });
+  } catch (err: any) {
+    console.error("Critical error in /api/test/start:", err);
+    res.status(500).json({ error: "Tizimda xatolik yuz berdi: " + err.message });
+  }
 });
 
 // 2. Auto-save answers Endpoint
@@ -692,9 +733,10 @@ app.post("/api/admin/ban", (req, res) => {
   const { uid, action, duration } = req.body; // action: 'ban' | 'unban', duration: '1_hour' | '12_hours' | '1_day' | etc
   if (!uid) return res.status(400).json({ error: "Missing uid" });
 
+  let bannedUntil: string | null = null;
   if (action === "ban") {
     bannedUsers.add(uid);
-    let bannedUntil = "permanent";
+    bannedUntil = "permanent";
     if (duration && duration !== "permanent") {
       const now = Date.now();
       let ms = 0;
@@ -712,7 +754,15 @@ app.post("/api/admin/ban", (req, res) => {
     bannedUsers.delete(uid);
     delete userBans[uid];
   }
-  res.json({ success: true, banned: bannedUsers.has(uid), bannedUntil: userBans[uid] || null });
+
+  // Update in usersListLocal if exists
+  const idx = usersListLocal.findIndex(u => u.uid === uid);
+  if (idx > -1) {
+    usersListLocal[idx].bannedUntil = bannedUntil;
+    saveUsersDb();
+  }
+
+  res.json({ success: true, banned: bannedUsers.has(uid), bannedUntil });
 });
 
 app.get("/api/admin/banned-users", (req, res) => {
@@ -729,6 +779,49 @@ app.get("/api/admin/banned-users", (req, res) => {
     }
   }
   res.json({ banned: activeBans, details: userBans });
+});
+
+// Sync User state with server database
+app.post("/api/users/sync", (req, res) => {
+  const user = req.body;
+  if (!user || !user.uid) return res.status(400).json({ error: "Missing user details" });
+
+  const idx = usersListLocal.findIndex(u => u.uid === user.uid);
+  if (idx > -1) {
+    usersListLocal[idx] = { ...usersListLocal[idx], ...user };
+  } else {
+    usersListLocal.push(user);
+  }
+  
+  // Save in-memory ban if user object specifies it
+  if (user.bannedUntil) {
+    const now = Date.now();
+    if (user.bannedUntil === "permanent" || new Date(user.bannedUntil).getTime() > now) {
+      bannedUsers.add(user.uid);
+      userBans[user.uid] = user.bannedUntil;
+    } else {
+      bannedUsers.delete(user.uid);
+      delete userBans[user.uid];
+    }
+  }
+
+  saveUsersDb();
+  res.json({ success: true });
+});
+
+// Get all users from server database
+app.get("/api/admin/users", (req, res) => {
+  res.json({ users: usersListLocal });
+});
+
+// Delete user from server database
+app.delete("/api/admin/users/:uid", (req, res) => {
+  const { uid } = req.params;
+  usersListLocal = usersListLocal.filter(u => u.uid !== uid);
+  bannedUsers.delete(uid);
+  delete userBans[uid];
+  saveUsersDb();
+  res.json({ success: true });
 });
 
 // Premium Purchase Endpoint - Sends receipt details and image to Telegram bot
