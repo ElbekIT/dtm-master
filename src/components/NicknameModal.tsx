@@ -30,35 +30,35 @@ export const NicknameModal: React.FC = () => {
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 md:p-8 border border-slate-100"
+        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 md:p-8 border border-slate-100 dark:border-slate-800"
       >
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3 shadow-inner">
+          <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-3 shadow-inner">
             <UserCheck className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800">Xush kelibsiz!</h2>
-          <p className="text-slate-500 text-sm mt-1">
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Xush kelibsiz!</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
             DTM MASTER platformasiga xush kelibsiz. Tizimda sizni tanib olishimiz va reytingda ko'rsatishimiz uchun noyob taxallus (nickname) kiriting.
           </p>
         </div>
 
         {currentUser?.photoURL && (
-          <div className="flex items-center justify-center mb-6 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div className="flex items-center justify-center mb-6 gap-3 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
             <img 
               src={currentUser.photoURL} 
               alt="Google Avatar" 
-              className="w-10 h-10 rounded-full border border-blue-200"
+              className="w-10 h-10 rounded-full border border-blue-200 dark:border-blue-700"
             />
             <div className="text-left">
               <div className="text-xs text-slate-400 font-medium">Google Akkaunt</div>
-              <div className="text-sm font-semibold text-slate-700">{currentUser.email}</div>
+              <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{currentUser.email}</div>
             </div>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
               Sizning Taxallusingiz (Nickname)
             </label>
             <input 
@@ -70,7 +70,7 @@ export const NicknameModal: React.FC = () => {
               }}
               placeholder="Masalan: Elbek_DTM"
               maxLength={20}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition text-slate-800 font-medium"
+              className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition text-slate-800 dark:text-white font-medium"
               required
               disabled={submitting}
             />

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { 
   Award, 
   Crown, 
@@ -12,7 +13,9 @@ import {
   X, 
   Home, 
   Info, 
-  Sparkles 
+  Sparkles,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { PromocodeModal } from './PromocodeModal';
 
@@ -23,6 +26,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
   const { userProfile, logout, isPremiumActive, isTrialActive, loginWithGoogle } = useAuth();
+  const { darkMode, toggleDarkMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
 
@@ -33,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-xs">
+      <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-xs transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           
           {/* Logo */}
@@ -45,10 +49,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
               <Award className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-xl font-extrabold tracking-tight text-slate-900 flex items-center gap-1">
-                DTM <span className="text-blue-600">MASTER</span>
+              <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-1">
+                DTM <span className="text-blue-600 dark:text-blue-400">MASTER</span>
               </span>
-              <span className="hidden sm:block text-[10px] text-slate-400 font-medium tracking-wide uppercase">
+              <span className="hidden sm:block text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wide uppercase">
                 O'zbekiston Imtihon Platformasi
               </span>
             </div>
@@ -119,6 +123,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
 
           {/* Right Action Items */}
           <div className="flex items-center gap-2.5">
+            {/* Dark Mode Toggle Button */}
+            <button
+              onClick={toggleDarkMode}
+              title={darkMode ? "Kunduzgi rejim (Light mode)" : "Tungi rejim (Dark mode)"}
+              className="p-2 rounded-xl transition cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center"
+            >
+              {darkMode ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-600" />
+              )}
+            </button>
+
             {userProfile ? (
               <>
                 {/* Promocode Modal Trigger */}

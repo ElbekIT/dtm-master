@@ -51,40 +51,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const fetchUserProfile = async (user: FirebaseUser) => {
+    // 1. Instantly check local cache first for superfast UI response
+    const localData = localStorage.getItem(`dtm_user_${user.uid}`);
+    if (localData) {
+      try {
+        const parsed = JSON.parse(localData) as UserProfile;
+        setUserProfile(parsed);
+        setNeedsNickname(false);
+        setNeedsWelcome(!parsed.welcomed);
+      } catch (e) {
+        // invalid JSON
+      }
+    }
+
+    // 2. Fetch from Firestore with 3.5s timeout fallback to avoid blocking or hanging on offline/slow network
     try {
       const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Firestore timeout')), 3500)
+      );
+
+      const userSnap = await Promise.race([getDoc(userRef), timeoutPromise]);
 
       if (userSnap.exists()) {
         const data = userSnap.data() as UserProfile;
         
-        // Check if banned
         if (data.isBanned) {
           if (data.banUntil && Date.now() > data.banUntil) {
-            // Ban expired
-            await updateDoc(userRef, { isBanned: false, banReason: null, banUntil: null });
+            updateDoc(userRef, { isBanned: false, banReason: null, banUntil: null }).catch(() => {});
             data.isBanned = false;
           }
         }
 
         setUserProfile(data);
+        localStorage.setItem(`dtm_user_${user.uid}`, JSON.stringify(data));
         setNeedsNickname(false);
         setNeedsWelcome(!data.welcomed);
       } else {
-        // User does not have profile yet -> Needs Nickname
-        setUserProfile(null);
-        setNeedsNickname(true);
-        setNeedsWelcome(false);
+        if (!localData) {
+          setUserProfile(null);
+          setNeedsNickname(true);
+          setNeedsWelcome(false);
+        }
       }
     } catch (err) {
-      console.error("Error fetching user profile:", err);
-      // Fallback local memory profile if offline
-      const localData = localStorage.getItem(`dtm_user_${user.uid}`);
-      if (localData) {
-        const parsed = JSON.parse(localData) as UserProfile;
-        setUserProfile(parsed);
-        setNeedsNickname(false);
-      } else {
+      console.warn("Firestore profile fetch skipped or timed out, using local profile:", err);
+      if (!localData) {
         setNeedsNickname(true);
       }
     }
@@ -139,79 +152,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: "Taxallus kamida 3 ta belgidan iborat bo'lishi kerak." };
     }
 
-    try {
-      // Check if nickname is taken in Firestore
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('nickname', '==', trimmed));
-      const querySnap = await getDocs(q);
+    const referralCode = `DTM-${trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    const newProfile: UserProfile = {
+      uid: currentUser.uid,
+      email: currentUser.email || '',
+      photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(trimmed)}`,
+      nickname: trimmed,
+      createdAt: Date.now(),
+      lastLogin: Date.now(),
+      score: 0,
+      testsSolved: 0,
+      country: "O'zbekiston",
+      role: 'user',
+      referralCode: referralCode,
+      usedReferralCode: null,
+      trialDays: 2, // 2 days free trial
+      trialStartedAt: Date.now(),
+      isPremium: false,
+      premiumUntil: null,
+      helpsUsedCount: 0,
+      isBanned: false,
+      welcomed: false
+    };
 
-      if (!querySnap.empty) {
-        return { success: false, message: "Ushbu taxallus band! Iltimos, boshqa taxallus tanlang." };
+    // Save locally FIRST for instant non-blocking user experience
+    localStorage.setItem(`dtm_user_${currentUser.uid}`, JSON.stringify(newProfile));
+    setUserProfile(newProfile);
+    setNeedsNickname(false);
+    setNeedsWelcome(true);
+
+    // Sync to Firestore in the background non-blockingly
+    (async () => {
+      try {
+        await setDoc(doc(db, 'users', currentUser.uid), newProfile);
+      } catch (err) {
+        console.warn("Background Firestore sync for user profile:", err);
       }
+    })();
 
-      const referralCode = `DTM-${trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-      
-      const newProfile: UserProfile = {
-        uid: currentUser.uid,
-        email: currentUser.email || '',
-        photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${trimmed}`,
-        nickname: trimmed,
-        createdAt: Date.now(),
-        lastLogin: Date.now(),
-        score: 0,
-        testsSolved: 0,
-        country: "O'zbekiston",
-        role: 'user',
-        referralCode: referralCode,
-        usedReferralCode: null,
-        trialDays: 2, // 2 days free trial
-        trialStartedAt: Date.now(),
-        isPremium: false,
-        premiumUntil: null,
-        helpsUsedCount: 0,
-        isBanned: false,
-        welcomed: false
-      };
-
-      await setDoc(doc(db, 'users', currentUser.uid), newProfile);
-      localStorage.setItem(`dtm_user_${currentUser.uid}`, JSON.stringify(newProfile));
-
-      setUserProfile(newProfile);
-      setNeedsNickname(false);
-      setNeedsWelcome(true);
-
-      return { success: true };
-    } catch (err: any) {
-      console.error("Error creating nickname:", err);
-      // Fallback save to local storage if network glitch
-      const referralCode = `DTM-${trimmed.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const newProfile: UserProfile = {
-        uid: currentUser.uid,
-        email: currentUser.email || '',
-        photoURL: currentUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${trimmed}`,
-        nickname: trimmed,
-        createdAt: Date.now(),
-        lastLogin: Date.now(),
-        score: 0,
-        testsSolved: 0,
-        country: "O'zbekiston",
-        role: 'user',
-        referralCode: referralCode,
-        usedReferralCode: null,
-        trialDays: 2,
-        trialStartedAt: Date.now(),
-        isPremium: false,
-        premiumUntil: null,
-        helpsUsedCount: 0,
-        isBanned: false,
-        welcomed: false
-      };
-      localStorage.setItem(`dtm_user_${currentUser.uid}`, JSON.stringify(newProfile));
-      setUserProfile(newProfile);
-      setNeedsNickname(false);
-      setNeedsWelcome(true);
-      return { success: true };
-    }
+    return { success: true };
   };
 
   const confirmWelcome = async () => {
