@@ -121,6 +121,20 @@ export default function App() {
   // 3. User profile and realtime subscriptions sync
   const syncUserProfile = async (uid: string) => {
     setIsProfileLoading(true);
+    
+    // First, instantly try to load cached profile from localStorage as an instant startup fallback
+    const cachedProfile = localStorage.getItem(`dtm_user_profile_${uid}`);
+    if (cachedProfile) {
+      try {
+        const profile = JSON.parse(cachedProfile) as UserProfile;
+        setUserProfile(profile);
+        setShowWelcome(false);
+        setIsProfileLoading(false);
+      } catch (e) {
+        console.warn("Failed to parse cached profile", e);
+      }
+    }
+
     try {
       const docRef = doc(db, "users", uid);
       
@@ -129,6 +143,7 @@ export default function App() {
         if (docSnap.exists()) {
           const profile = docSnap.data() as UserProfile;
           setUserProfile(profile);
+          localStorage.setItem(`dtm_user_profile_${uid}`, JSON.stringify(profile));
           setShowWelcome(false);
         } else {
           // If no profile document in Firestore, trigger Welcome screen nickname setup
@@ -137,6 +152,25 @@ export default function App() {
         setIsProfileLoading(false);
       }, (err) => {
         console.error("Realtime profile sync error:", err);
+        
+        // If snapshot fails (e.g. offline or sandbox rules block it), try fallback fetch
+        getDoc(docRef).then((snap) => {
+          if (snap.exists()) {
+            const profile = snap.data() as UserProfile;
+            setUserProfile(profile);
+            localStorage.setItem(`dtm_user_profile_${uid}`, JSON.stringify(profile));
+            setShowWelcome(false);
+          } else {
+            setShowWelcome(true);
+          }
+        }).catch((getDocErr) => {
+          console.error("Fallback getDoc also failed:", getDocErr);
+          // If we have no cached profile and the server is unreachable, show Welcome screen so they can create one!
+          if (!localStorage.getItem(`dtm_user_profile_${uid}`)) {
+            setShowWelcome(true);
+          }
+        });
+        
         setIsProfileLoading(false);
       });
 
@@ -369,18 +403,28 @@ export default function App() {
           
           {/* Admin Panel view - Rendered unconditionally at the top level */}
           {currentView === "admin" && (
-            <AdminPanel 
-              showToast={showToast}
-              onCloseAdmin={() => {
-                // Return to dashboard or landing depending on login status
-                setCurrentView("dashboard");
-              }}
-            />
+            <motion.div 
+              key="admin-panel"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="w-full"
+            >
+              <AdminPanel 
+                showToast={showToast}
+                onCloseAdmin={() => {
+                  // Return to dashboard or landing depending on login status
+                  setCurrentView("dashboard");
+                }}
+              />
+            </motion.div>
           )}
 
           {/* A. If not logged in and not admin - show customize splash page */}
           {currentView !== "admin" && !firebaseUser && (
             <motion.div 
+              key="landing-splash"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -433,21 +477,32 @@ export default function App() {
 
           {/* B. Welcome Screen nickname picker on first login */}
           {currentView !== "admin" && firebaseUser && showWelcome && (
-            <WelcomeScreen 
-              firebaseUser={firebaseUser} 
-              onProfileCreated={(profile) => {
-                setUserProfile(profile);
-                setShowWelcome(false);
-              }}
-              showToast={showToast}
-            />
+            <motion.div
+              key="welcome-screen"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25 }}
+              className="w-full"
+            >
+              <WelcomeScreen 
+                firebaseUser={firebaseUser} 
+                onProfileCreated={(profile) => {
+                  setUserProfile(profile);
+                  setShowWelcome(false);
+                }}
+                showToast={showToast}
+              />
+            </motion.div>
           )}
 
           {/* C. Account Ban Shield */}
           {currentView !== "admin" && firebaseUser && userProfile && userProfile.isBanned && (
             <motion.div 
+              key="ban-shield"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               className="max-w-md mx-auto px-4 py-12 text-center space-y-6"
             >
               <div className="p-4 bg-red-500/10 rounded-full border border-red-500/20 text-red-500 inline-block">
@@ -480,7 +535,14 @@ export default function App() {
 
           {/* D. Regular Logged-In User Core Views */}
           {currentView !== "admin" && firebaseUser && userProfile && !userProfile.isBanned && (
-            <div className="max-w-6xl mx-auto px-4">
+            <motion.div 
+              key="core-app-views"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="max-w-6xl mx-auto px-4"
+            >
               
               {/* Dashboard Content */}
               {currentView === "dashboard" && (
@@ -639,7 +701,7 @@ export default function App() {
                 />
               )}
 
-            </div>
+            </motion.div>
           )}
 
         </AnimatePresence>
