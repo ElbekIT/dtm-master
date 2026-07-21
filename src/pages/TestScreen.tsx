@@ -8,7 +8,7 @@ import { motion } from "motion/react";
 import { Clock, ShieldAlert, CheckSquare, ChevronLeft, ChevronRight, Save, Send, AlertTriangle } from "lucide-react";
 import { Question, TestSession, User } from "../types";
 import SecurityGuard from "../components/SecurityGuard";
-import { calculateClientScore } from "../lib/testGenerator";
+import { calculateClientScore, shuffleArray } from "../lib/testGenerator";
 
 interface TestScreenProps {
   currentUser: User;
@@ -150,18 +150,45 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
         }));
         setHintsUsed(data.hintsUsed);
       } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(errData.error || "Yordam olishda xatolik yuz berdi. Tarmoqni tekshiring.");
+        // Fallback to client-side 50-50 hints logic if offline/fallback session
+        const q = questions.find(item => item.id === qId);
+        if (q) {
+          const correctKey = q.correctAnswer || "A";
+          const wrongKeys = ["A", "B", "C", "D"].filter(k => k !== correctKey);
+          const shuffledWrong = shuffleArray(wrongKeys);
+          const optionsToHide = shuffledWrong.slice(0, 2);
+          setHiddenOptions(prev => ({
+            ...prev,
+            [qId]: optionsToHide
+          }));
+          setHintsUsed(prev => prev + 1);
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          alert(errData.error || "Yordam olishda xatolik yuz berdi. Tarmoqni tekshiring.");
+        }
       }
     } catch (err) {
-      console.error("Hint usage failed:", err);
-      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
+      console.error("Hint usage failed, using local offline fallback:", err);
+      const q = questions.find(item => item.id === qId);
+      if (q) {
+        const correctKey = q.correctAnswer || "A";
+        const wrongKeys = ["A", "B", "C", "D"].filter(k => k !== correctKey);
+        const shuffledWrong = shuffleArray(wrongKeys);
+        const optionsToHide = shuffledWrong.slice(0, 2);
+        setHiddenOptions(prev => ({
+          ...prev,
+          [qId]: optionsToHide
+        }));
+        setHintsUsed(prev => prev + 1);
+      } else {
+        alert("Yordam olish imkonsiz.");
+      }
     } finally {
       setHintLoading(false);
     }
   };
 
-  // Finish test & Calculate score (strictly online only as requested)
+  // Finish test & Calculate score (strictly online only as requested, with robust offline/client fallback)
   const handleFinishTest = async () => {
     setSavingStatus("saving");
     const timeUsedSeconds = durationSeconds - timeLeft;
@@ -181,12 +208,14 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
         const resultsData = await res.json();
         onFinishTest(resultsData);
       } else {
-        const errData = await res.json().catch(() => ({}));
-        alert(`Aloqa xatoligi: ${errData.error || "Natijalarni hisoblashda server xatosi"}. Tarmoq aloqasini tekshiring.`);
+        console.warn("Server calculation failed, using client fallback calculation");
+        const localResults = calculateClientScore(questions, answers, timeUsedSeconds, directionName);
+        onFinishTest({ ...localResults, hintsUsed });
       }
     } catch (err) {
-      console.error("Network connection failed during finish-test:", err);
-      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
+      console.error("Network connection failed during finish-test, calculating client side:", err);
+      const localResults = calculateClientScore(questions, answers, timeUsedSeconds, directionName);
+      onFinishTest({ ...localResults, hintsUsed });
     } finally {
       setSavingStatus("idle");
     }

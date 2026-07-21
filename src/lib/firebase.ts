@@ -132,6 +132,22 @@ export const initialLeaderboardSeed = [
   { uid: "seed_7", nickname: "Bekzod_77", direction: "Sun'iy Intellekt", score: 120.3, correctCount: 55, timeUsed: "170:00", updatedAt: new Date().toISOString() }
 ];
 
+// Pre-seeded high quality mock users for Admin panel offline evaluation
+export const initialUsersSeed = [
+  { uid: "seed_1", nickname: "Mavlonbek_99", email: "mavlonbek@gmail.com", role: "user", score: 186.2, testsSolved: 8, country: "Toshkent shahri", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "MAVLONBEK_S1", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "oylik" },
+  { uid: "seed_2", nickname: "Kamola_IT", email: "kamola98@gmail.com", role: "user", score: 179.8, testsSolved: 6, country: "Samarqand", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "KAMOLA_S2", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "oylik" },
+  { uid: "seed_3", nickname: "Diyorbek_AI", email: "diyorbek@gmail.com", role: "user", score: 172.5, testsSolved: 5, country: "Andijon", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "DIYORBEK_S3", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "haftalik" },
+  { uid: "seed_4", nickname: "Shahzod_Dev", email: "shahzod@gmail.com", role: "user", score: 165.4, testsSolved: 4, country: "Buxoro", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "SHAHZOD_S4", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "yillik" },
+  { uid: "seed_5", nickname: "Jasur_Chempion", email: "jasur@gmail.com", role: "user", score: 158.1, testsSolved: 3, country: "Xorazm", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "JASUR_S5", trialDaysAdded: 0, subscriptionStatus: "none", premium: false },
+  { uid: "seed_6", nickname: "Nodira_Math", email: "nodira@gmail.com", role: "user", score: 144.6, testsSolved: 2, country: "Farg'ona", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "NODIRA_S6", trialDaysAdded: 0, subscriptionStatus: "none", premium: false },
+  { uid: "seed_7", nickname: "Bekzod_77", email: "bekzod@gmail.com", role: "user", score: 120.3, testsSolved: 1, country: "Navoiy", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "BEKZOD_S7", trialDaysAdded: 0, subscriptionStatus: "none", premium: false }
+];
+
+// Pre-seeded purchase request for Admin panel offline evaluation
+export const initialPurchasesSeed = [
+  { id: "seed_5", uid: "seed_5", nickname: "Jasur_Chempion", email: "jasur@gmail.com", plan: "oylik", price: "25000", receiptImage: "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=600&q=80", status: "Tekshirilyapti", createdAt: new Date().toISOString() }
+];
+
 // Safe Firestore wrappers that fallback instantly on timeout or failure
 export async function getDoc(docRef: any): Promise<any> {
   const path = docRef.path;
@@ -157,6 +173,23 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<voi
   const existingLocal = getLocalData<any>(path) || {};
   const merged = options?.merge ? { ...existingLocal, ...data } : data;
   setLocalData(path, merged);
+
+  // Sync cache list in local storage for parent collection
+  const lastSlashIndex = path.lastIndexOf("/");
+  if (lastSlashIndex > 0) {
+    const colPath = path.substring(0, lastSlashIndex);
+    const colListKey = `col_list_${colPath}`;
+    const currentList = getLocalData<any[]>(colListKey) || [];
+    const docId = path.substring(lastSlashIndex + 1);
+    
+    const existingIndex = currentList.findIndex(item => item.id === docId || item.uid === docId || (item && item.uid && item.uid === docId));
+    if (existingIndex > -1) {
+      currentList[existingIndex] = { ...currentList[existingIndex], ...merged, id: docId, uid: docId };
+    } else {
+      currentList.push({ ...merged, id: docId, uid: docId });
+    }
+    setLocalData(colListKey, currentList);
+  }
 
   try {
     await withTimeout(firebaseSetDoc(docRef, data, options), 2000);
@@ -215,6 +248,16 @@ export async function getDocs(queryOrCol: any): Promise<any> {
     if (colPath === "leaderboard" && cachedList.length === 0) {
       cachedList = initialLeaderboardSeed;
       setLocalData(`col_list_leaderboard`, cachedList);
+    }
+
+    if (colPath === "users" && cachedList.length === 0) {
+      cachedList = initialUsersSeed;
+      setLocalData(`col_list_users`, cachedList);
+    }
+
+    if (colPath === "purchases" && cachedList.length === 0) {
+      cachedList = initialPurchasesSeed;
+      setLocalData(`col_list_purchases`, cachedList);
     }
 
     let filteredList = cachedList;

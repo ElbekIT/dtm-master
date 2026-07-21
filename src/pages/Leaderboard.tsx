@@ -35,7 +35,10 @@ export default function Leaderboard() {
         if (querySnapshot) {
           const list: LeaderboardEntry[] = [];
           querySnapshot.forEach((doc) => {
-            list.push(doc.data() as LeaderboardEntry);
+            const data = doc.data() as LeaderboardEntry;
+            if (data && data.score > 0) {
+              list.push(data);
+            }
           });
           setEntries(list);
         }

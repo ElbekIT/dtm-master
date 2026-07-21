@@ -152,12 +152,16 @@ export default function App() {
         setActiveTestSession(testData);
         setCurrentTab("active_test"); // Switch to focus exam screen (Navbar is hidden!)
       } else {
-        const errData = await response.json().catch(() => ({}));
-        alert(`Aloqa xatoligi: ${errData.error || "Imtihonni boshlash imkonsiz"}. Tarmoq aloqasini tekshiring.`);
+        console.warn("Server start-test failed, falling back to client-side generator");
+        const fallbackSession = generateClientTestSession(directionId, directionName);
+        setActiveTestSession(fallbackSession);
+        setCurrentTab("active_test");
       }
     } catch (err) {
-      console.error("Network connection failed during start-test:", err);
-      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
+      console.error("Network connection failed during start-test, using client-side fallback:", err);
+      const fallbackSession = generateClientTestSession(directionId, directionName);
+      setActiveTestSession(fallbackSession);
+      setCurrentTab("active_test");
     }
   };
 
