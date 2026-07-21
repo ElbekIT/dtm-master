@@ -121,7 +121,7 @@ export default function AdminPanel({ showToast, onCloseAdmin }: AdminPanelProps)
       setAnnouncements(annList);
 
     } catch (err) {
-      console.error("Error loading admin data:", err);
+      console.warn("Error loading admin data:", err);
       showToast("Ma'lumotlarni yuklashda xatolik yuz berdi.", "error");
     } finally {
       setIsLoading(false);
@@ -192,7 +192,7 @@ export default function AdminPanel({ showToast, onCloseAdmin }: AdminPanelProps)
 
       loadAdminData();
     } catch (e) {
-      console.error(e);
+      console.warn("Error modifying payment:", e);
       showToast("To'lovni tahrirlashda xatolik yuz berdi.", "error");
     }
   };

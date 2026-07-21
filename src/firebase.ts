@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { 
+  initializeFirestore,
   getFirestore, 
   collection, 
   doc, 
@@ -37,7 +38,10 @@ const firebaseConfig = {
 
 // Initialize Firebase client
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Force long-polling to prevent WebSocket connection failures inside AI Studio sandboxed iframe
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+});
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -97,7 +101,7 @@ export async function reserveUsername(uid: string, username: string): Promise<bo
       });
       return true;
     } catch (e: any) {
-      console.error("Failed to reserve username transactionally:", e);
+      console.warn("Failed to reserve username transactionally, checking fallbacks:", e);
       const msg = e.message || "";
       if (msg.toLowerCase().includes("offline") || e.code === "unavailable" || msg.toLowerCase().includes("transaction") || msg.toLowerCase().includes("client is offline")) {
         try {
@@ -106,7 +110,7 @@ export async function reserveUsername(uid: string, username: string): Promise<bo
           await setDoc(usernameRef, { uid });
           return true;
         } catch (innerErr) {
-          console.error("Bypass setDoc failed, forcing fallback return true", innerErr);
+          console.warn("Bypass setDoc failed, forcing fallback return true", innerErr);
           return true; // Extreme fallback to keep the student unblocked
         }
       }

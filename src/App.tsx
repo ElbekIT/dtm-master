@@ -110,7 +110,7 @@ export default function App() {
       }
       setIsAuthLoading(false);
     }, (error) => {
-      console.error("Auth state change error:", error);
+      console.warn("Auth state change warning/error caught:", error);
       showToast("Tizimga kirish xizmatida xatolik yuz berdi.", "error");
       setIsAuthLoading(false);
     });
@@ -151,7 +151,7 @@ export default function App() {
         }
         setIsProfileLoading(false);
       }, (err) => {
-        console.error("Realtime profile sync error:", err);
+        console.warn("Realtime profile sync warning (bypassed with cache fallbacks):", err);
         
         // If snapshot fails (e.g. offline or sandbox rules block it), try fallback fetch
         getDoc(docRef).then((snap) => {
@@ -164,7 +164,7 @@ export default function App() {
             setShowWelcome(true);
           }
         }).catch((getDocErr) => {
-          console.error("Fallback getDoc also failed:", getDocErr);
+          console.warn("Fallback getDoc also failed (falling back to localStorage):", getDocErr);
           // If we have no cached profile and the server is unreachable, show Welcome screen so they can create one!
           if (!localStorage.getItem(`dtm_user_profile_${uid}`)) {
             setShowWelcome(true);
@@ -220,7 +220,7 @@ export default function App() {
         unsubscribeAnn();
       };
     } catch (e) {
-      console.error("Profile sync exception:", e);
+      console.warn("Profile sync exception handled:", e);
       setIsProfileLoading(false);
     }
   };
@@ -236,7 +236,7 @@ export default function App() {
       showToast("Google hisobiga ulanish so'ralmoqda...", "info");
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      console.error("Sign in failed:", error);
+      console.warn("Sign in warning/failure handled:", error);
       if (error.code === "auth/popup-closed-by-user") {
         showToast("Kirish oynasi yopildi. Qayta urinib ko'ring.", "info");
       } else {

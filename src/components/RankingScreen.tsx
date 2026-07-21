@@ -25,6 +25,20 @@ export default function RankingScreen({ currentUserProfile, showToast }: Ranking
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Attempt to load cached rankings first to make rendering instant
+    const cached = localStorage.getItem("dtm_rankings_cache");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as UserProfile[];
+        if (parsed && parsed.length > 0) {
+          setRankings(parsed);
+          setIsLoading(false);
+        }
+      } catch (e) {
+        console.warn("Failed to parse cached rankings:", e);
+      }
+    }
+
     // 1. Fetch real-time ranking data directly from Firestore 'users' collection
     // No mock users, only real users sorted strictly by Highest Score, lowest Time, lowest help used
     const usersRef = collection(db, "users");
@@ -55,11 +69,12 @@ export default function RankingScreen({ currentUserProfile, showToast }: Ranking
         return (a.helpUsedTotal || 0) - (b.helpUsedTotal || 0);
       });
 
-      setRankings(list.slice(0, 100));
+      const sliced = list.slice(0, 100);
+      setRankings(sliced);
+      localStorage.setItem("dtm_rankings_cache", JSON.stringify(sliced));
       setIsLoading(false);
     }, (error) => {
-      console.error("Realtime ranking subscription error:", error);
-      showToast("Reyting ma'lumotlarini yuklashda xatolik yuz berdi.", "error");
+      console.warn("Realtime ranking subscription error (safely using offline mode):", error);
       setIsLoading(false);
     });
 

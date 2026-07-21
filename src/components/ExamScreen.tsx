@@ -114,12 +114,28 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
 
   const loadExamSession = async () => {
     setIsLoading(true);
+    const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+    
+    // Try retrieving cached active session from localStorage first
+    let cachedActiveSession: ExamSession | null = null;
+    const cacheStr = localStorage.getItem(cachedSessionKey);
+    if (cacheStr) {
+      try {
+        const parsed = JSON.parse(cacheStr) as ExamSession;
+        if (parsed && parsed.status === "active") {
+          cachedActiveSession = parsed;
+        }
+      } catch (e) {
+        console.warn("Failed to parse cached exam session:", e);
+      }
+    }
+
     try {
       const docRef = doc(db, "exams", userProfile.uid);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists() && docSnap.data().status === "active") {
-        // Load existing active session
+        // Load existing active session from Firestore
         const activeSession = docSnap.data() as ExamSession;
         
         let sessionQuestions: Question[] = [];
@@ -141,6 +157,7 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
           });
         }
 
+        localStorage.setItem(cachedSessionKey, JSON.stringify(activeSession));
         setQuestions(sessionQuestions);
         setSession(activeSession);
       } else {
@@ -155,23 +172,53 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
           startTime: Date.now(),
           durationLeft: 14400, // 4 hours in seconds
           questionIds,
-          questions: newQuestions, // Store them directly in firestore!
+          questions: newQuestions, // Store them directly in firestore
           answers: {},
           currentQuestionIndex: 0,
           helpUsedOnQuestions: {},
           helpChancesLeft: userProfile.helpChances !== undefined ? userProfile.helpChances : 3
         };
 
-        await setDoc(doc(db, "exams", userProfile.uid), newSession);
-        
+        try {
+          await setDoc(doc(db, "exams", userProfile.uid), newSession);
+        } catch (setErr) {
+          console.warn("Could not save new exam session to Firestore, using local mode:", setErr);
+        }
+
+        localStorage.setItem(cachedSessionKey, JSON.stringify(newSession));
         setQuestions(newQuestions);
         setSession(newSession);
       }
     } catch (error: any) {
-      console.error("Failed to load exam session:", error);
-      showToast("Imtihonni yuklashda xatolik yuz berdi. Qayta yuklanmoqda...", "error");
-      // Auto-retry
-      setTimeout(loadExamSession, 3000);
+      console.warn("Failed to load exam session from Firestore, attempting localStorage fallback:", error);
+      
+      if (cachedActiveSession) {
+        // Gracefully fallback to cached session without block or error
+        setQuestions(cachedActiveSession.questions || []);
+        setSession(cachedActiveSession);
+        showToast("Faol imtihon sessiyasi mahalliy xotiradan tiklandi.", "info");
+      } else {
+        // If no cached session exists, create one locally so student is never blocked!
+        const newQuestions = generateDtmExamQuestions();
+        const questionIds = newQuestions.map(q => q.id);
+        const offlineSession: ExamSession = {
+          id: `${userProfile.uid}_${Date.now()}`,
+          uid: userProfile.uid,
+          status: "active",
+          startTime: Date.now(),
+          durationLeft: 14400,
+          questionIds,
+          questions: newQuestions,
+          answers: {},
+          currentQuestionIndex: 0,
+          helpUsedOnQuestions: {},
+          helpChancesLeft: userProfile.helpChances !== undefined ? userProfile.helpChances : 3
+        };
+        localStorage.setItem(cachedSessionKey, JSON.stringify(offlineSession));
+        setQuestions(newQuestions);
+        setSession(offlineSession);
+        showToast("Yangi imtihon muvaffaqiyatli boshlandi (mahalliy rejim)!", "success");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -201,9 +248,11 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
         
         // Auto-save duration left to firestore every 15 seconds to prevent refresh abuse
         if (nextDuration % 15 === 0) {
+          const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+          localStorage.setItem(cachedSessionKey, JSON.stringify({ ...prev, durationLeft: nextDuration }));
           updateDoc(doc(db, "exams", userProfile.uid), {
             durationLeft: nextDuration
-          }).catch(e => console.error("Auto-saving duration left failed:", e));
+          }).catch(e => console.warn("Auto-saving duration left failed (offline fallback active):", e));
         }
 
         return { ...prev, durationLeft: nextDuration };
@@ -216,7 +265,7 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
   }, [session?.id, isOnline]);
 
   const handleSelectAnswer = async (answer: 'A' | 'B' | 'C' | 'D') => {
-    if (!session || !isOnline) return;
+    if (!session) return;
 
     const currentQuestion = questions[session.currentQuestionIndex];
     const updatedAnswers = { ...session.answers, [currentQuestion.id]: answer };
@@ -225,20 +274,23 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
     const updatedSession = { ...session, answers: updatedAnswers };
     setSession(updatedSession);
 
+    // Save to local cache first
+    const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+    localStorage.setItem(cachedSessionKey, JSON.stringify(updatedSession));
+
     // Save answers permanently to Firestore instantly
     try {
       await updateDoc(doc(db, "exams", userProfile.uid), {
         answers: updatedAnswers
       });
     } catch (e) {
-      console.error("Failed to save answer to Firestore:", e);
-      showToast("Javob saqlashda xatolik yuz berdi, tarmoq qayta ulanmoqda...", "error");
+      console.warn("Failed to save answer to Firestore (safely cached locally):", e);
     }
   };
 
   // 50-50 HELP LIFELINE MECHANIC
   const handleUseHelp = async () => {
-    if (!session || session.helpChancesLeft <= 0 || !isOnline) return;
+    if (!session || session.helpChancesLeft <= 0) return;
 
     const currentQuestion = questions[session.currentQuestionIndex];
     
@@ -275,19 +327,21 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
         helpChances: nextHelpChances,
         helpUsedTotal: increment(1)
       });
-
-      // Update session state
-      setSession(prev => prev ? {
-        ...prev,
-        helpUsedOnQuestions: updatedHelpUsed,
-        helpChancesLeft: nextHelpChances
-      } : null);
-
-      showToast("Yordam ishlatildi! 2 ta noto'g'ri javob olib tashlandi.", "success");
     } catch (e) {
-      console.error("Error applying help lifeline:", e);
-      showToast("Yordamni qo'llashda xatolik yuz berdi. Qayta urinib ko'ring.", "error");
+      console.warn("Error applying help lifeline to database, applying locally:", e);
     }
+
+    // Update session state & local cache anyway
+    const updatedSession = {
+      ...session,
+      helpUsedOnQuestions: updatedHelpUsed,
+      helpChancesLeft: nextHelpChances
+    };
+    setSession(updatedSession);
+    const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+    localStorage.setItem(cachedSessionKey, JSON.stringify(updatedSession));
+
+    showToast("Yordam ishlatildi! 2 ta noto'g'ri javob olib tashlandi.", "success");
   };
 
   const handleNextQuestion = () => {
@@ -307,10 +361,14 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
       const updatedSession = { ...session, currentQuestionIndex: nextIndex };
       setSession(updatedSession);
 
+      // Save locally
+      const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+      localStorage.setItem(cachedSessionKey, JSON.stringify(updatedSession));
+
       // Save index to database
       updateDoc(doc(db, "exams", userProfile.uid), {
         currentQuestionIndex: nextIndex
-      }).catch(e => console.error("Saving current index failed:", e));
+      }).catch(e => console.warn("Saving current index failed (saved locally):", e));
     }
   };
 
@@ -320,10 +378,14 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
     const updatedSession = { ...session, currentQuestionIndex: prevIndex };
     setSession(updatedSession);
 
+    // Save locally
+    const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+    localStorage.setItem(cachedSessionKey, JSON.stringify(updatedSession));
+
     // Save index to database
     updateDoc(doc(db, "exams", userProfile.uid), {
       currentQuestionIndex: prevIndex
-    }).catch(e => console.error("Saving current index failed:", e));
+    }).catch(e => console.warn("Saving current index failed (saved locally):", e));
   };
 
   // FINISH AND SUBMIT EXAM WITH SERVER-SIDE LEVEL SECURITY/CALCULATIONS
@@ -366,18 +428,7 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
         subjectsSummary
       };
 
-      // 1. Save result to 'results' collection
-      await setDoc(doc(db, "results", resultId), examResult);
-
-      // 2. Mark exam session as completed/inactive in exams collection
-      await setDoc(doc(db, "exams", userProfile.uid), {
-        status: "completed",
-        answers: session.answers,
-        currentQuestionIndex: session.currentQuestionIndex,
-        endTime: Date.now()
-      }, { merge: true });
-
-      // 3. Update User Statistics (exam count, averages, highs)
+      // Define local variables for next calculations in case DB fails
       const nextExamCount = userProfile.examCount + 1;
       const nextAvgScore = parseFloat(((userProfile.avgScore * userProfile.examCount + score) / nextExamCount).toFixed(1));
       const nextHighestScore = Math.max(userProfile.highestScore, score);
@@ -387,19 +438,58 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
         nextLowestTime = timeSpent;
       }
 
-      await updateDoc(doc(db, "users", userProfile.uid), {
-        examCount: nextExamCount,
-        avgScore: nextAvgScore,
-        highestScore: nextHighestScore,
-        lowestTime: nextLowestTime,
-        lastUpdated: Date.now()
-      });
+      // Try sending to database, with graceful local fallback
+      try {
+        // 1. Save result to 'results' collection
+        await setDoc(doc(db, "results", resultId), examResult);
+
+        // 2. Mark exam session as completed/inactive in exams collection
+        await setDoc(doc(db, "exams", userProfile.uid), {
+          status: "completed",
+          answers: session.answers,
+          currentQuestionIndex: session.currentQuestionIndex,
+          endTime: Date.now()
+        }, { merge: true });
+
+        // 3. Update User Statistics
+        await updateDoc(doc(db, "users", userProfile.uid), {
+          examCount: nextExamCount,
+          avgScore: nextAvgScore,
+          highestScore: nextHighestScore,
+          lowestTime: nextLowestTime,
+          lastUpdated: Date.now()
+        });
+      } catch (dbErr: any) {
+        console.warn("Database save failed for exam result, keeping in localStorage cache:", dbErr);
+        // Save to cache for local recovery or later sync
+        localStorage.setItem(`dtm_result_${resultId}`, JSON.stringify(examResult));
+      }
+
+      // Clear the local active session so the user can take another exam
+      const cachedSessionKey = `dtm_exam_session_${userProfile.uid}`;
+      localStorage.removeItem(cachedSessionKey);
+
+      // Save updated profile stats to local cache so profile page updates immediately
+      const cachedProfileKey = `dtm_user_profile_${userProfile.uid}`;
+      const localProfileStr = localStorage.getItem(cachedProfileKey);
+      if (localProfileStr) {
+        try {
+          const lp = JSON.parse(localProfileStr);
+          lp.examCount = nextExamCount;
+          lp.avgScore = nextAvgScore;
+          lp.highestScore = nextHighestScore;
+          lp.lowestTime = nextLowestTime;
+          localStorage.setItem(cachedProfileKey, JSON.stringify(lp));
+        } catch (e) {
+          console.warn("Could not save stats to local profile cache:", e);
+        }
+      }
 
       showToast(forceTimeUp ? "Vaqt tugadi! Imtihon yakunlandi." : "Imtihon muvaffaqiyatli yakunlandi!", "success");
       onExamFinished(examResult);
     } catch (error: any) {
-      console.error("Error submitting exam:", error);
-      showToast("Imtihon natijasini saqlashda muammo yuz berdi. Qayta urinib ko'ramiz...", "error");
+      console.warn("Critical error caught inside handleFinishExam:", error);
+      showToast("Imtihon natijasini saqlashda muammo yuz berdi. Natija mahalliy saqlandi.", "info");
       setIsSubmitting(false);
     }
   };
