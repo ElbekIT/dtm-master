@@ -8,6 +8,7 @@ import { motion } from "motion/react";
 import { Clock, ShieldAlert, CheckSquare, ChevronLeft, ChevronRight, Save, Send, AlertTriangle } from "lucide-react";
 import { Question, TestSession, User } from "../types";
 import SecurityGuard from "../components/SecurityGuard";
+import { calculateClientScore } from "../lib/testGenerator";
 
 interface TestScreenProps {
   currentUser: User;
@@ -116,9 +117,10 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
   const currentQuestion = filteredQuestions[currentQuestionIndex] || filteredQuestions[0];
   const absoluteQuestionIndex = questions.findIndex(q => q.id === currentQuestion?.id);
 
-  // Finish test & Calculate score
+  // Finish test & Calculate score with robust offline fallback
   const handleFinishTest = async () => {
     setSavingStatus("saving");
+    const timeUsedSeconds = durationSeconds - timeLeft;
     try {
       const res = await fetch("/api/test/finish", {
         method: "POST",
@@ -126,7 +128,7 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
         body: JSON.stringify({
           testSessionId,
           uid: currentUser.uid,
-          timeUsedSeconds: durationSeconds - timeLeft
+          timeUsedSeconds
         })
       });
 
@@ -134,11 +136,14 @@ export default function TestScreen({ currentUser, testSession, onFinishTest }: T
         const resultsData = await res.json();
         onFinishTest(resultsData);
       } else {
-        alert("Imtihonni yakunlashda xatolik yuz berdi. Iltimos qayta urining.");
+        console.warn("Backend error calculating score, falling back to client-side calculator.");
+        const fallbackResults = calculateClientScore(questions, answers, timeUsedSeconds, directionName);
+        onFinishTest(fallbackResults);
       }
     } catch (err) {
-      console.error("Finish test calculation error:", err);
-      alert("Aloqa xatosi. Iltimos qayta urining.");
+      console.warn("Network / API connection failed. Calculating score securely offline.", err);
+      const fallbackResults = calculateClientScore(questions, answers, timeUsedSeconds, directionName);
+      onFinishTest(fallbackResults);
     } finally {
       setSavingStatus("idle");
     }

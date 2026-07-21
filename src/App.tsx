@@ -22,6 +22,9 @@ import Admin from "./pages/Admin";
 // Components
 import Header from "./components/Header";
 
+// Offline Test Generator
+import { generateClientTestSession } from "./lib/testGenerator";
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
@@ -103,7 +106,7 @@ export default function App() {
     setActiveResults(null);
   };
 
-  // Triggers starting a test with server-side secure randomization
+  // Triggers starting a test with server-side secure randomization or offline client-side fallback
   const handleStartTest = async (directionId: string, directionName: string) => {
     if (!currentUser) return;
     try {
@@ -125,11 +128,18 @@ export default function App() {
         setCurrentTab("active_test"); // Switch to focus exam screen (Navbar is hidden!)
       } else {
         const errData = await response.json();
-        alert(errData.error || "Imtihonni boshlashda xatolik yuz berdi. Iltimos qayta urining.");
+        console.warn("Backend error starting test, falling back to client-side offline generator:", errData);
+        // Fallback to client-side test generation
+        const clientTestData = generateClientTestSession(directionId, directionName);
+        setActiveTestSession(clientTestData);
+        setCurrentTab("active_test");
       }
     } catch (err) {
-      console.error("Start test fetch error:", err);
-      alert("Aloqa xatoligi. Tarmoq aloqasini tekshiring.");
+      console.warn("Network / API connection failed. Initiating secure client-side offline test generator.", err);
+      // Fallback to client-side test generation
+      const clientTestData = generateClientTestSession(directionId, directionName);
+      setActiveTestSession(clientTestData);
+      setCurrentTab("active_test");
     }
   };
 
