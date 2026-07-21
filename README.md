@@ -1,3 +1,20 @@
-## Ogohlantirish
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-Diqqat: Agar kimdir mualliflik huquqi bilan himoyalangan yoki taqiqlangan materiallarni (masalan, noqonuniy nusxalar, shaxsiy ma'lumotlar yoki litsenziyasiz kontent) ushbu xizmatga yoki ommaviy joyga yuklasa, u qonuniy javobgarlikka tortilishi mumkin. Bunday materiallar tarqatilishi yoki foydalanuvchilarga taqdim etilishi taqiqlanadi, chunki bu mualliflik huquqini buzadi, shaxsiy maxfiylikni xavf ostiga qo'yadi va litsenziya shartlarini buzadi. Iltimos, faqat o'zingizga tegishli yoki ruxsat etilgan kontentni yuklang.
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/3c60191b-6c7e-49e0-b664-578da47a83b9
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
