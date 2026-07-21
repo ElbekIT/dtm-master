@@ -89,6 +89,9 @@ export default function App() {
             const userData = userDoc.data() as User;
             setCurrentUser(userData);
             syncUserWithBackend(userData);
+            if (userData.role === "admin") {
+              setCurrentTab("admin");
+            }
           } else {
             // First time login - clean reset to trigger signup nickname step in Login page
             setCurrentUser(null);
@@ -115,7 +118,7 @@ export default function App() {
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     syncUserWithBackend(user);
-    setCurrentTab("home");
+    setCurrentTab(user.role === "admin" ? "admin" : "home");
   };
 
   const handleUserUpdate = (updatedUser: User) => {
@@ -205,7 +208,9 @@ export default function App() {
       {/* 2. Main content container */}
       <main className="flex-grow">
         {currentTab === "home" && (
-          hasActiveAccess(currentUser) ? (
+          currentUser.role === "admin" ? (
+            <Admin />
+          ) : hasActiveAccess(currentUser) ? (
             <Home
               currentUser={currentUser}
               onStartTest={handleStartTest}

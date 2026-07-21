@@ -17,17 +17,19 @@ interface HeaderProps {
 export default function Header({ currentUser, currentTab, setCurrentTab, onLogout }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const navItems = [
-    { id: "home", label: "Bosh sahifa", icon: Home },
-    { id: "ranking", label: "Reyting", icon: Trophy },
-    { id: "notifications", label: "Habarnomalar", icon: Bell },
-    { id: "profile", label: "Profil", icon: UserIcon },
-    { id: "about", label: "Loyiha haqida", icon: HelpCircle },
-  ];
-
-  if (currentUser?.role === "admin") {
-    navItems.push({ id: "admin", label: "Admin Panel", icon: ShieldAlert });
-  }
+  const navItems = currentUser?.role === "admin"
+    ? [
+        { id: "admin", label: "Admin Panel", icon: ShieldAlert },
+        { id: "profile", label: "Profil", icon: UserIcon },
+        { id: "about", label: "Loyiha haqida", icon: HelpCircle },
+      ]
+    : [
+        { id: "home", label: "Bosh sahifa", icon: Home },
+        { id: "ranking", label: "Reyting", icon: Trophy },
+        { id: "notifications", label: "Habarnomalar", icon: Bell },
+        { id: "profile", label: "Profil", icon: UserIcon },
+        { id: "about", label: "Loyiha haqida", icon: HelpCircle },
+      ];
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-xs">

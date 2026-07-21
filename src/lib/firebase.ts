@@ -144,7 +144,7 @@ export const initialPurchasesSeed = [
 export async function getDoc(docRef: any): Promise<any> {
   const path = docRef.path;
   try {
-    const docSnap = await withTimeout(firebaseGetDoc(docRef), 2000);
+    const docSnap = await withTimeout(firebaseGetDoc(docRef), 10000);
     if (docSnap.exists()) {
       setLocalData(path, docSnap.data());
     }
@@ -184,7 +184,7 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<voi
   }
 
   try {
-    await withTimeout(firebaseSetDoc(docRef, data, options), 2000);
+    await withTimeout(firebaseSetDoc(docRef, data, options), 10000);
   } catch (err) {
     console.warn(`Firestore setDoc timed out/failed for ${path}. Saved locally.`, err);
   }
@@ -202,7 +202,7 @@ export async function addDoc(colRef: any, data: any): Promise<any> {
   setLocalData(colListKey, currentList);
 
   try {
-    return await withTimeout(firebaseAddDoc(colRef, data), 2000);
+    return await withTimeout(firebaseAddDoc(colRef, data), 10000);
   } catch (err) {
     console.warn(`Firestore addDoc timed out/failed for ${colPath}. Saved locally.`, err);
     return {
@@ -220,10 +220,18 @@ export async function getDocs(queryOrCol: any): Promise<any> {
     colPath = queryOrCol._query.path.segments.join("/");
   } else if (queryOrCol.query && queryOrCol.query.path) {
     colPath = queryOrCol.query.path.segments.join("/");
+  } else {
+    try {
+      const strRepresentation = JSON.stringify(queryOrCol) || "";
+      if (strRepresentation.includes("leaderboard")) colPath = "leaderboard";
+      else if (strRepresentation.includes("users")) colPath = "users";
+      else if (strRepresentation.includes("results")) colPath = "results";
+      else if (strRepresentation.includes("purchases")) colPath = "purchases";
+    } catch (e) {}
   }
 
   try {
-    const querySnapshot = await withTimeout(firebaseGetDocs(queryOrCol), 2000);
+    const querySnapshot = await withTimeout(firebaseGetDocs(queryOrCol), 10000);
     const list: any[] = [];
     querySnapshot.forEach((doc: any) => {
       list.push({ id: doc.id, ...(doc.data() as any) });
@@ -296,7 +304,7 @@ export async function deleteDoc(docRef: any): Promise<void> {
   setLocalData(colListKey, updatedList);
 
   try {
-    await withTimeout(firebaseDeleteDoc(docRef), 2000);
+    await withTimeout(firebaseDeleteDoc(docRef), 10000);
   } catch (err) {
     console.warn(`Firestore deleteDoc timed out/failed for ${path}. Removed locally.`, err);
   }
@@ -306,7 +314,7 @@ export async function deleteDoc(docRef: any): Promise<void> {
 export async function testConnection() {
   try {
     const testDocRef = doc(db, 'system_test', 'connection');
-    await withTimeout(firebaseGetDoc(testDocRef), 1500);
+    await withTimeout(firebaseGetDoc(testDocRef), 5000);
     console.log("Firebase Connection verified successfully.");
   } catch (error) {
     console.warn("Please check your Firebase configuration or network connection. Operating in Offline Resilient Mode.");

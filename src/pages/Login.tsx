@@ -5,10 +5,10 @@
 
 import React, { useState } from "react";
 import { motion } from "motion/react";
-import { auth, googleProvider, db, handleFirestoreError, OperationType, getDoc, setDoc } from "../lib/firebase";
+import { auth, googleProvider, db, handleFirestoreError, OperationType, getDoc, setDoc, getDocs } from "../lib/firebase";
 import { signInWithPopup } from "firebase/auth";
-import { doc } from "firebase/firestore";
-import { Chrome, ShieldAlert, Award, ArrowRight, CheckCircle2, MapPin } from "lucide-react";
+import { doc, collection, query, where } from "firebase/firestore";
+import { Chrome, ShieldAlert, Award, ArrowRight, CheckCircle2, MapPin, Sparkles } from "lucide-react";
 import { User } from "../types";
 
 interface LoginProps {
@@ -29,6 +29,10 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   
   const [nickname, setNickname] = useState("");
   const [country, setCountry] = useState("O'zbekiston");
+
+  // Welcome modal/step after nickname selection
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [newUserPending, setNewUserPending] = useState<User | null>(null);
 
   // Admin password states
   const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
@@ -106,7 +110,8 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   // Handles completing user setup
   const handleCompleteSetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nickname.trim()) {
+    const targetNickname = nickname.trim();
+    if (!targetNickname) {
       setError("Iltimos, nikneymingizni kiriting.");
       return;
     }
@@ -115,34 +120,71 @@ export default function Login({ onLoginSuccess }: LoginProps) {
     setLoading(true);
     setError(null);
 
-    const cleanNickname = nickname.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const generatedPromo = `${cleanNickname}_${tempAuthData.uid.substring(0, 4).toUpperCase()}`;
-
-    const newUser: User = {
-      uid: tempAuthData.uid,
-      email: tempAuthData.email,
-      photoURL: tempAuthData.photoURL,
-      nickname: nickname.trim(),
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      score: 0,
-      testsSolved: 0,
-      country: country,
-      role: "user", // Default role
-      promoCode: generatedPromo,
-      trialDaysAdded: 0,
-      subscriptionStatus: "none",
-      premium: false
-    };
-
     try {
-      const userDocRef = doc(db, "users", newUser.uid);
-      await setDoc(userDocRef, newUser);
-      onLoginSuccess(newUser);
+      // Nickname uniqueness check in Firestore
+      const nicknameQuery = query(
+        collection(db, "users"),
+        where("nickname", "==", targetNickname)
+      );
+      const querySnapshot = await getDocs(nicknameQuery);
+      
+      let isTaken = false;
+      querySnapshot.forEach((doc: any) => {
+        const data = doc.data();
+        if (data && data.nickname && data.nickname.toLowerCase() === targetNickname.toLowerCase()) {
+          isTaken = true;
+        }
+      });
+
+      if (isTaken) {
+        setError("Ushbu taxallus (nikneym) allaqachon band! Iltimos, boshqa nom tanlang.");
+        setLoading(false);
+        return;
+      }
+
+      // Prepare new user payload
+      const cleanNickname = targetNickname.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const generatedPromo = `${cleanNickname}_${tempAuthData.uid.substring(0, 4).toUpperCase()}`;
+
+      const newUser: User = {
+        uid: tempAuthData.uid,
+        email: tempAuthData.email,
+        photoURL: tempAuthData.photoURL,
+        nickname: targetNickname,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        score: 0,
+        testsSolved: 0,
+        country: country,
+        role: "user", // Default role
+        promoCode: generatedPromo,
+        trialDaysAdded: 0,
+        subscriptionStatus: "none",
+        premium: false
+      };
+
+      setNewUserPending(newUser);
+      setShowWelcomeModal(true);
+    } catch (err) {
+      console.error("Nickname validation failed:", err);
+      setError("Tizimda xatolik yuz berdi. Taxallusni tekshirib bo'lmadi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmWelcome = async () => {
+    if (!newUserPending) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const userDocRef = doc(db, "users", newUserPending.uid);
+      await setDoc(userDocRef, newUserPending);
+      onLoginSuccess(newUserPending);
     } catch (err) {
       console.error(err);
       setError("Ma'lumotlarni saqlashda xatolik yuz berdi.");
-      handleFirestoreError(err, OperationType.CREATE, `users/${newUser.uid}`);
+      handleFirestoreError(err, OperationType.CREATE, `users/${newUserPending.uid}`);
     } finally {
       setLoading(false);
     }
@@ -385,6 +427,54 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Welcome & Confirmation Modal ("Tastiqlash") */}
+      {showWelcomeModal && newUserPending && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 w-full max-w-md shadow-2xl relative overflow-hidden"
+          >
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-600" />
+            
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-100 shadow-inner">
+                <Sparkles className="w-8 h-8 stroke-[2.2] text-emerald-500" />
+              </div>
+              
+              <h3 className="font-display font-extrabold text-slate-900 text-2xl">
+                Tizimni Tasdiqlash
+              </h3>
+              
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left space-y-3">
+                <p className="text-slate-800 font-bold text-base">
+                  Assalomu alaykum, <span className="text-emerald-600 font-extrabold">{newUserPending.nickname}</span>!
+                </p>
+                <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                  Siz bizning <span className="text-emerald-600 font-bold">DTM MASTER</span> saytimizga kirganingiz uchun rahmat! Bizning platformamizdan foydalanishni boshlash uchun quyidagi tasdiqlash tugmasini bosing.
+                </p>
+                <p className="text-xs text-slate-500 leading-relaxed font-semibold">
+                  Tasdiqlashni bosgandan so'ng, sizning profilingiz rasman faollashadi va ma'lumotlaringiz tizimda to'liq saqlanib, abituriyentlar ro'yxatida aks etadi.
+                </p>
+              </div>
+
+              {error && (
+                <p className="text-xs text-red-500 text-center font-bold bg-red-50 py-2 px-3 rounded-lg">{error}</p>
+              )}
+
+              <button
+                onClick={handleConfirmWelcome}
+                disabled={loading}
+                className="w-full py-4 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-2xl hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                <span>{loading ? "Faollashtirilmoqda..." : "Tasdiqlash va Kirish"}</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
           </motion.div>
         </div>
       )}
