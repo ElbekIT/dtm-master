@@ -1,0 +1,230 @@
+{
+  "questions": [
+    {
+      "id": "math_1",
+      "question": "Agar f(x) = 3x^2 - 2x + 5 bo'lsa, f'(2) ni hisoblang.",
+      "options": {
+        "A": "10",
+        "B": "12",
+        "C": "8",
+        "D": "14"
+      },
+      "correctAnswer": "A",
+      "subject": "Mathematics",
+      "difficulty": "medium"
+    },
+    {
+      "id": "math_2",
+      "question": "Tengsizlikni yeching: log_2(x - 3) < 3",
+      "options": {
+        "A": "3 < x < 11",
+        "B": "x < 11",
+        "C": "x > 3",
+        "D": "3 < x < 9"
+      },
+      "correctAnswer": "A",
+      "subject": "Mathematics",
+      "difficulty": "medium"
+    },
+    {
+      "id": "math_3",
+      "question": "Arifmetik progressiyada a_1 = 5 va d = 3 bo'lsa, dastlabki 10 ta hadi yig'indisini toping.",
+      "options": {
+        "A": "185",
+        "B": "170",
+        "C": "195",
+        "D": "200"
+      },
+      "correctAnswer": "A",
+      "subject": "Mathematics",
+      "difficulty": "medium"
+    },
+    {
+      "id": "math_4",
+      "question": "Geometrik progressiyada b_1 = 2 va q = 3 bo'lsa, b_4 ni toping.",
+      "options": {
+        "A": "54",
+        "B": "18",
+        "C": "24",
+        "D": "162"
+      },
+      "correctAnswer": "A",
+      "subject": "Mathematics",
+      "difficulty": "easy"
+    },
+    {
+      "id": "math_5",
+      "question": "Uchburchakning ikki tomoni 6 sm va 8 sm ga, ular orasidagi burchak 30 gradusga teng. Uchburchak yuzini toping.",
+      "options": {
+        "A": "12 sm²",
+        "B": "24 sm²",
+        "C": "12√3 sm²",
+        "D": "48 sm²"
+      },
+      "correctAnswer": "A",
+      "subject": "Mathematics",
+      "difficulty": "medium"
+    },
+    {
+      "id": "phys_1",
+      "question": "Jism 5 m/s² tezlanish bilan tinch holatdan harakat boshladi. 4 soniyada bosib o'tgan yo'lini toping.",
+      "options": {
+        "A": "40 m",
+        "B": "20 m",
+        "C": "80 m",
+        "D": "10 m"
+      },
+      "correctAnswer": "A",
+      "subject": "Physics",
+      "difficulty": "easy"
+    },
+    {
+      "id": "phys_2",
+      "question": "Ideal gazning bosimi 2 marta ortib, hajmi 3 marta kamaysa, uning temperaturasi qanday o'zgaradi?",
+      "options": {
+        "A": "1.5 marta kamayadi",
+        "B": "1.5 marta ortadi",
+        "C": "6 marta kamayadi",
+        "D": "O'zgarmaydi"
+      },
+      "correctAnswer": "A",
+      "subject": "Physics",
+      "difficulty": "medium"
+    },
+    {
+      "id": "phys_3",
+      "question": "Yorug'likning havodan sindirish ko'rsatkichi n=1.5 bo'lgan shishaga o'tishidagi tezligini hisoblang (c = 3*10^8 m/s).",
+      "options": {
+        "A": "2*10^8 m/s",
+        "B": "4.5*10^8 m/s",
+        "C": "1.5*10^8 m/s",
+        "D": "3*10^8 m/s"
+      },
+      "correctAnswer": "A",
+      "subject": "Physics",
+      "difficulty": "easy"
+    },
+    {
+      "id": "lang_1",
+      "question": "Qaysi qatorda faqat yasama otlar berilgan?",
+      "options": {
+        "A": "Guldon, taroq, ishchi",
+        "B": "Kitob, daftar, qalam",
+        "C": "Sariq, baland, katta",
+        "D": "Yozdi, o'qidi, keldi"
+      },
+      "correctAnswer": "A",
+      "subject": "Native Language",
+      "difficulty": "easy"
+    },
+    {
+      "id": "lang_2",
+      "question": "Eski o'zbek adabiy tilining asoschisi kim?",
+      "options": {
+        "A": "Alisher Navoiy",
+        "B": "Zahiriddin Muhammad Bobur",
+        "C": "Lutfiy",
+        "D": "Abdurauf Fitrat"
+      },
+      "correctAnswer": "A",
+      "subject": "Native Language",
+      "difficulty": "easy"
+    },
+    {
+      "id": "hist_1",
+      "question": "Amir Temur nechanchi yilda tavallud topgan?",
+      "options": {
+        "A": "1336-yil 9-aprel",
+        "B": "1346-yil 9-aprel",
+        "C": "1326-yil 9-aprel",
+        "D": "1356-yil 9-aprel"
+      },
+      "correctAnswer": "A",
+      "subject": "History of Uzbekistan",
+      "difficulty": "easy"
+    },
+    {
+      "id": "hist_2",
+      "question": "O'zbekiston Respublikasi Konstitutsiyasi qachon qabul qilingan?",
+      "options": {
+        "A": "1992-yil 8-dekabr",
+        "B": "1991-yil 31-avgust",
+        "C": "1993-yil 8-dekabr",
+        "D": "1992-yil 1-sentabr"
+      },
+      "correctAnswer": "A",
+      "subject": "History of Uzbekistan",
+      "difficulty": "easy"
+    },
+    {
+      "id": "prof_cyber_1",
+      "question": "Simmetrik shifrlash algoritmini ko'rsating.",
+      "options": {
+        "A": "AES",
+        "B": "RSA",
+        "C": "Diffie-Hellman",
+        "D": "ECC"
+      },
+      "correctAnswer": "A",
+      "subject": "Professional Subject",
+      "direction": "Kiber Xavfsizlik",
+      "difficulty": "medium"
+    },
+    {
+      "id": "prof_cyber_2",
+      "question": "SQL Injection hujumidan himoyalanishning eng samarali usuli qaysi?",
+      "options": {
+        "A": "Prepared Statements (Parametrlangan so'rovlar) ishlatish",
+        "B": "Faqat POST so'rovlaridan foydalanish",
+        "C": "Ma'lumotlar bazasini shifrlash",
+        "D": "Antivirus o'rnatish"
+      },
+      "correctAnswer": "A",
+      "subject": "Professional Subject",
+      "direction": "Kiber Xavfsizlik",
+      "difficulty": "medium"
+    },
+    {
+      "id": "prof_comp_1",
+      "question": "Protsessorda buyruqlarni saqlash va tezkor qayta ishlash uchun ishlatiladigan eng tezkor xotira turi qaysi?",
+      "options": {
+        "A": "Registrlar",
+        "B": "Kesh xotira (Cache)",
+        "C": "Tezkor xotira (RAM)",
+        "D": "Qattiq disk (HDD)"
+      },
+      "correctAnswer": "A",
+      "subject": "Professional Subject",
+      "direction": "Kompyuter Injenering",
+      "difficulty": "medium"
+    },
+    {
+      "id": "prof_soft_1",
+      "question": "Ob'ektga yo'naltirilgan dasturlashda (OOP) polimorfizm nima?",
+      "options": {
+        "A": "Bir xil nomli metodlarning turli sinflarda turlicha ishlashi",
+        "B": "Ma'lumotlarni ruxsatsiz kirishdan himoyalash",
+        "C": "Bir sinfdan boshqa sinfga xususiyatlarni o'tkazish",
+        "D": "Kodni modullarga bo'lish jarayoni"
+      },
+      "correctAnswer": "A",
+      "subject": "Professional Subject",
+      "direction": "Dasturiy Injenering",
+      "difficulty": "medium"
+    },
+    {
+      "id": "prof_ai_1",
+      "question": "Mashinali o'rganishda o'qituvchisiz o'rganish (Unsupervised Learning) algoritmini ko'rsating.",
+      "options": {
+        "A": "K-Means klasterizatsiyasi",
+        "B": "Chiziqli regressiya",
+        "C": "Logistik regressiya",
+        "D": "Qarorlar daraxti (Decision Trees)"
+      },
+      "correctAnswer": "A",
+      "subject": "Professional Subject",
+      "direction": "Sun'iy Intellekt",
+      "difficulty": "medium"
+    }
+  ]
+}
