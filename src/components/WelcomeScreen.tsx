@@ -178,36 +178,36 @@ export default function WelcomeScreen({ firebaseUser, onProfileCreated, showToas
   };
 
   return (
-    <div id="welcome-screen" className="flex items-center justify-center min-h-[80vh] px-4">
+    <div id="welcome-screen" className="flex items-center justify-center min-h-[80vh] px-6">
       <motion.div 
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-2xl"
+        className="w-full max-w-lg bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8 md:p-10 shadow-2xl backdrop-blur-md"
       >
         <div className="flex justify-center mb-6">
           <div className="p-4 bg-amber-500/10 rounded-full border border-amber-500/20 text-amber-500">
-            <Sparkles className="w-10 h-10 animate-pulse" />
+            <Sparkles className="w-8 h-8 animate-pulse" />
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-center text-white mb-2 font-display">
+        <h1 className="text-3xl font-bold text-center text-white mb-2 font-display tracking-tight">
           Assalomu alaykum, {firebaseUser.displayName?.split(" ")[0]}!
         </h1>
-        <p className="text-center text-neutral-400 mb-8 leading-relaxed">
+        <p className="text-center text-xs md:text-sm text-zinc-400 mb-8 leading-relaxed">
           Bizning professional <span className="text-amber-500 font-semibold">DTM MASTER</span> platformamizga xush kelibsiz. 
-          Siz bu yerda haqiqiy davlat test imtihonlariga eng ilg'or texnologiyalar bilan tayyorgarlik ko'rasiz.
+          Siz bu yerda haqiqiy davlat test imtihonlariga eng ilg'or tizimlar bilan tayyorgarlik ko'rasiz.
         </p>
 
         <form onSubmit={handleCreateProfile} className="space-y-6">
           {/* Unique Nickname input */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-neutral-300">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
               Profil uchun unikal taxallus (Nickname)
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-500">
-                <User className="w-5 h-5" />
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
+                <User className="w-4 h-4" />
               </span>
               <input
                 type="text"
@@ -216,28 +216,29 @@ export default function WelcomeScreen({ firebaseUser, onProfileCreated, showToas
                 placeholder="masalan: elbek_99"
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
-                className="w-full pl-10 pr-4 py-3 bg-neutral-950 border border-neutral-800 rounded-xl text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all text-sm"
+                className="w-full pl-10 pr-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all text-sm font-medium"
               />
             </div>
             {usernameError && (
-              <p className="flex items-center text-xs text-red-500 mt-1 gap-1">
+              <p className="flex items-center text-xs text-red-400 mt-1.5 gap-1.5 font-medium">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {usernameError}
               </p>
             )}
-            <p className="text-xs text-neutral-500">
-              Taxallusingiz reytingda va admin panelida ko'rinadi. Keyinchalik o'zgartirib bo'lmaydi.
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Taxallusingiz reytingda va shaxsiy kabinetingizda ko'rinadi. Keyinchalik o'zgartirib bo'lmaydi.
             </p>
           </div>
 
           {/* Referral/Promo Code input */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-neutral-300 flex items-center justify-between">
-              Taklif kodi (Promo Code) <span className="text-xs text-neutral-500 font-normal">ixtiyoriy</span>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+              <span>Taklif kodi (Promo Code)</span> 
+              <span className="text-[10px] text-zinc-500 font-normal normal-case">ixtiyoriy</span>
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-500">
-                <Gift className="w-5 h-5" />
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-500">
+                <Gift className="w-4 h-4" />
               </span>
               <input
                 type="text"
@@ -245,35 +246,35 @@ export default function WelcomeScreen({ firebaseUser, onProfileCreated, showToas
                 disabled={isValidating || isSubmitting}
                 value={referralCode}
                 onChange={(e) => setReferralCode(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-neutral-950 border border-neutral-800 rounded-xl text-white placeholder-neutral-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all text-sm uppercase font-mono"
+                className="w-full pl-10 pr-4 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition-all text-sm uppercase font-mono tracking-wider"
               />
             </div>
-            <p className="text-xs text-neutral-500">
-              Do'stingiz kodi orqali kirsangiz, sizga <span className="text-amber-500 font-semibold">+1 kun</span> va do'stingizga <span className="text-amber-500 font-semibold">+2 kun</span> qo'shimcha premium taqdim etiladi!
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Do'stingiz taklif kodi orqali kirsangiz, sizga <span className="text-amber-500 font-semibold">+1 kun</span> va do'stingizga <span className="text-amber-500 font-semibold">+2 kun</span> bonus premium taqdim etiladi.
             </p>
           </div>
 
           <button
             type="submit"
             disabled={isValidating || isSubmitting}
-            className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 disabled:bg-neutral-800 text-neutral-950 disabled:text-neutral-600 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 disabled:bg-zinc-800 text-zinc-950 disabled:text-zinc-600 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2 cursor-pointer transform active:scale-[0.99] duration-150"
           >
             {isValidating || isSubmitting ? (
               <>
-                <Loader className="w-5 h-5 animate-spin" />
+                <Loader className="w-4 h-4 animate-spin" />
                 <span>Tekshirilmoqda...</span>
               </>
             ) : (
               <>
-                <Check className="w-5 h-5" />
-                <span>Platformani boshlash</span>
+                <Check className="w-4 h-4" />
+                <span>Platformani Boshlash</span>
               </>
             )}
           </button>
         </form>
 
-        <p className="text-center text-xs text-neutral-600 mt-6">
-          Ro'yxatdan o'tish orqali siz barcha xizmat ko'rsatish qoidalarini tasdiqlaysiz.
+        <p className="text-center text-[11px] text-zinc-600 mt-6 leading-relaxed">
+          Platformani boshlash orqali siz xizmat ko'rsatish qoidalari va xavfsizlik shartlariga rozilik bildirasiz.
         </p>
       </motion.div>
     </div>

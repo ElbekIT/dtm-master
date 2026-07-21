@@ -294,58 +294,58 @@ export default function App() {
 
   if (isAuthLoading || (firebaseUser && isProfileLoading && !showWelcome)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 gap-4">
-        <Loader className="w-10 h-10 text-amber-500 animate-spin" />
-        <span className="text-neutral-400 font-medium text-sm">DTM MASTER yuklanmoqda...</span>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 gap-4">
+        <Loader className="w-8 h-8 text-amber-500 animate-spin" />
+        <span className="text-zinc-500 font-medium text-xs tracking-wider uppercase">Yuklanmoqda...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans select-none selection:bg-amber-500 selection:text-neutral-950">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans select-none selection:bg-amber-500 selection:text-zinc-950">
       
       {/* 1. Global Header Navigation */}
-      <header className="sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md border-b border-neutral-800">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-900">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div 
             onClick={() => setCurrentView("dashboard")}
-            className="flex items-center gap-3.5 cursor-pointer"
+            className="flex items-center gap-3 cursor-pointer group"
           >
-            <div className="p-2 bg-amber-500 rounded-xl text-neutral-950 shadow-md shadow-amber-500/10">
+            <div className="p-2.5 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl text-zinc-950 shadow-lg shadow-amber-500/10 transition-transform group-hover:scale-105 duration-300">
               <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-lg font-extrabold tracking-wider text-white font-display">DTM MASTER</span>
-              <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider block -mt-1">PREP PLATFORM</span>
+              <span className="text-xl font-extrabold tracking-tight text-white font-display block">DTM MASTER</span>
+              <span className="text-[9px] text-amber-500/90 font-bold uppercase tracking-widest block -mt-1">National Mock-Test Platform</span>
             </div>
           </div>
 
-          {/* Navigation Items (Show only if logged in and profile setup completed) */}
+          {/* Navigation Items */}
           {firebaseUser && userProfile && !userProfile.isBanned && (
-            <nav className="hidden md:flex items-center gap-1.5 text-xs font-bold">
+            <nav className="hidden md:flex items-center gap-1 text-xs font-semibold">
               <button
                 onClick={() => { setCurrentView("dashboard"); setActiveResult(null); }}
-                className={`px-4 py-2 rounded-xl transition-all ${currentView === "dashboard" ? "bg-amber-500 text-neutral-950" : "text-neutral-400 hover:text-white"}`}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${currentView === "dashboard" ? "bg-zinc-900 text-amber-400 border border-zinc-800" : "text-zinc-400 hover:text-white hover:bg-zinc-900/50"}`}
               >
-                Asosiy
+                Asosiy Oyna
               </button>
               <button
                 onClick={() => { setCurrentView("ranking"); setActiveResult(null); }}
-                className={`px-4 py-2 rounded-xl transition-all ${currentView === "ranking" ? "bg-amber-500 text-neutral-950" : "text-neutral-400 hover:text-white"}`}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${currentView === "ranking" ? "bg-zinc-900 text-amber-400 border border-zinc-800" : "text-zinc-400 hover:text-white hover:bg-zinc-900/50"}`}
               >
                 Reyting
               </button>
               <button
                 onClick={() => { setCurrentView("premium"); setActiveResult(null); }}
-                className={`px-4 py-2 rounded-xl transition-all ${currentView === "premium" ? "bg-amber-500 text-neutral-950" : "text-neutral-400 hover:text-white"}`}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${currentView === "premium" ? "bg-zinc-900 text-amber-400 border border-zinc-800" : "text-zinc-400 hover:text-white hover:bg-zinc-900/50"}`}
               >
                 Premium Obuna
               </button>
               <button
                 onClick={() => { setCurrentView("profile"); setActiveResult(null); }}
-                className={`px-4 py-2 rounded-xl transition-all ${currentView === "profile" ? "bg-amber-500 text-neutral-950" : "text-neutral-400 hover:text-white"}`}
+                className={`px-4 py-2 rounded-lg transition-all duration-200 ${currentView === "profile" ? "bg-zinc-900 text-amber-400 border border-zinc-800" : "text-zinc-400 hover:text-white hover:bg-zinc-900/50"}`}
               >
-                Kabinet
+                Shaxsiy Kabinet
               </button>
             </nav>
           )}
@@ -354,21 +354,20 @@ export default function App() {
           <div className="flex items-center gap-3">
             {firebaseUser ? (
               <div className="flex items-center gap-3">
-                {/* User Info Capsule */}
                 {userProfile && (
                   <div 
                     onClick={() => setCurrentView("profile")}
-                    className="flex items-center gap-2.5 bg-neutral-950 border border-neutral-850 py-1.5 pl-3 pr-1.5 rounded-full cursor-pointer hover:border-neutral-700 transition-all"
+                    className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-800/80 py-1.5 pl-3 pr-1.5 rounded-full cursor-pointer hover:border-zinc-700 hover:bg-zinc-900 transition-all duration-200"
                   >
                     <div className="text-right">
-                      <span className="text-xs font-bold text-white block truncate max-w-[100px]">{userProfile.displayName}</span>
-                      <span className="text-[9px] text-amber-500 font-bold block -mt-0.5">@{userProfile.username}</span>
+                      <span className="text-xs font-bold text-white block truncate max-w-[110px]">{userProfile.displayName}</span>
+                      <span className="text-[10px] text-zinc-500 font-mono block -mt-0.5">@{userProfile.username}</span>
                     </div>
                     <img 
                       src={userProfile.photoURL} 
                       alt={userProfile.displayName} 
                       referrerPolicy="no-referrer"
-                      className="w-8 h-8 rounded-full border border-neutral-800 object-cover" 
+                      className="w-7 h-7 rounded-full border border-zinc-800 object-cover" 
                     />
                   </div>
                 )}
@@ -376,10 +375,10 @@ export default function App() {
             ) : (
               <button
                 onClick={handleGoogleLogin}
-                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                className="px-4.5 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Tizimga kirish</span>
+                <span>Kirish</span>
               </button>
             )}
           </div>
@@ -387,13 +386,13 @@ export default function App() {
       </header>
 
       {/* 2. Main App Content Switcher */}
-      <main className="flex-grow py-6">
+      <main className="flex-grow py-8">
         
         {/* Offline global warning bar */}
         {showOfflineAlert && (
-          <div className="max-w-6xl mx-auto px-4 mb-4">
-            <div className="bg-red-950 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl flex items-center gap-2.5 shadow-lg text-xs font-semibold">
-              <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
+          <div className="max-w-6xl mx-auto px-6 mb-6">
+            <div className="bg-red-950/20 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg text-xs font-semibold">
+              <WifiOff className="w-5 h-5 text-red-500 shrink-0 animate-pulse" />
               <span>Siz hozir oflaynsiz. Tarmoq uzilgan. Platformadan faqat onlayn foydalanish mumkin!</span>
             </div>
           </div>
@@ -401,7 +400,7 @@ export default function App() {
 
         <AnimatePresence mode="wait">
           
-          {/* Admin Panel view - Rendered unconditionally at the top level */}
+          {/* Admin Panel view */}
           {currentView === "admin" && (
             <motion.div 
               key="admin-panel"
@@ -414,63 +413,62 @@ export default function App() {
               <AdminPanel 
                 showToast={showToast}
                 onCloseAdmin={() => {
-                  // Return to dashboard or landing depending on login status
                   setCurrentView("dashboard");
                 }}
               />
             </motion.div>
           )}
 
-          {/* A. If not logged in and not admin - show customize splash page */}
+          {/* A. If not logged in and not admin - show premium customized splash page */}
           {currentView !== "admin" && !firebaseUser && (
             <motion.div 
               key="landing-splash"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="max-w-4xl mx-auto px-4 py-16 text-center space-y-12"
+              className="max-w-4xl mx-auto px-6 py-20 text-center space-y-16"
             >
-              <div className="space-y-4">
-                <span className="inline-flex items-center gap-1.5 bg-amber-500/15 text-amber-500 border border-amber-500/25 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
-                  🚀 2026-YIL YANGI DTM MASTER TALABINDA
+              <div className="space-y-6">
+                <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest">
+                  🎓 2026-Yil Milliy DTM Master Standartlarida
                 </span>
-                <h1 className="text-4xl md:text-6xl font-extrabold text-white leading-tight font-display max-w-2xl mx-auto">
-                  Davlat imtihonlariga eng mukammal tayyorgarlik
+                <h1 className="text-4xl md:text-6xl font-bold text-white tracking-tight leading-tight font-display max-w-3xl mx-auto">
+                  Davlat imtihonlariga eng mukammal tayyorgarlik platformasi
                 </h1>
-                <p className="text-sm md:text-base text-neutral-400 max-w-xl mx-auto leading-relaxed">
-                  90 talik haqiqiy savollar bloki, Fisher-Yates tasodifiy shuffleri, 50-50 yordam lifelaynlari va milliy jonli reyting tizimi.
+                <p className="text-sm md:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+                  90 talik haqiqiy savollar bloki, Fisher-Yates tasodifiy shufflleri, 50-50 yordam lifelaynlari va milliy jonli reyting tizimi.
                 </p>
               </div>
 
               {/* Promo grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto text-left">
-                <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-2">
-                  <span className="text-2xl">⏳</span>
-                  <h3 className="font-bold text-white text-sm">4 Soatlik Real Imtihon</h3>
-                  <p className="text-xs text-neutral-500 leading-relaxed">Haqiqiy DTM barcha fanlar kesimida test rejimi bilan bilimingizni sinab ko'ring.</p>
+                <div className="bg-zinc-900/60 border border-zinc-800/80 p-7 rounded-2xl space-y-3 shadow-md hover:border-zinc-700 transition-all duration-300">
+                  <span className="text-3xl text-amber-500 block">⏳</span>
+                  <h3 className="font-bold text-white text-base font-display">4 Soatlik Real Imtihon</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">Haqiqiy DTM barcha majburiy va mutaxassislik fanlari kesimida test rejimi bilan bilimingizni sinab ko'ring.</p>
                 </div>
-                <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-2">
-                  <span className="text-2xl">💡</span>
-                  <h3 className="font-bold text-white text-sm">50:50 Yordam Tizimi</h3>
-                  <p className="text-xs text-neutral-500 leading-relaxed">Har bir imtihonda 3 marta noto'g'ri variantlarni o'chirish imkoniyati.</p>
+                <div className="bg-zinc-900/60 border border-zinc-800/80 p-7 rounded-2xl space-y-3 shadow-md hover:border-zinc-700 transition-all duration-300">
+                  <span className="text-3xl text-amber-500 block">💡</span>
+                  <h3 className="font-bold text-white text-base font-display">50:50 Yordam Tizimi</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">Har bir imtihonda 3 marta murakkab savollardagi 2 ta noto'g'ri variantni o'chirish imkoniyati.</p>
                 </div>
-                <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl space-y-2">
-                  <span className="text-2xl">🏆</span>
-                  <h3 className="font-bold text-white text-sm">Real vaqtdagi Reyting</h3>
-                  <p className="text-xs text-neutral-500 leading-relaxed">Barcha real foydalanuvchilar orasida o'z o'rningizni bir zumda kuzatib boring.</p>
+                <div className="bg-zinc-900/60 border border-zinc-800/80 p-7 rounded-2xl space-y-3 shadow-md hover:border-zinc-700 transition-all duration-300">
+                  <span className="text-3xl text-amber-500 block">🏆</span>
+                  <h3 className="font-bold text-white text-base font-display">Real vaqtdagi Reyting</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">Barcha real foydalanuvchilar orasida o'z o'rningizni bir zumda aniqlang va raqobatni his qiling.</p>
                 </div>
               </div>
 
               {/* CTA button */}
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-5 pt-4">
                 <button
                   onClick={handleGoogleLogin}
-                  className="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-extrabold rounded-2xl text-sm transition-all shadow-xl shadow-amber-500/10 flex items-center gap-3 cursor-pointer"
+                  className="px-8 py-4.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-zinc-950 font-bold rounded-xl text-sm transition-all shadow-xl shadow-amber-500/10 flex items-center gap-3.5 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0 duration-200"
                 >
                   <LogIn className="w-5 h-5" />
-                  <span>Google orqali bepul boshlash</span>
+                  <span>Google hisobingiz orqali boshlash</span>
                 </button>
-                <span className="text-[10px] text-neutral-600">Yangi talabalar uchun 2 kun bepul premium hadya etiladi!</span>
+                <span className="text-[11px] text-zinc-500 font-medium tracking-wide">Yangi ro'yxatdan o'tgan talabalar uchun 2 kunlik bepul sinov davri taqdim etiladi!</span>
               </div>
             </motion.div>
           )}
@@ -554,35 +552,35 @@ export default function App() {
                 >
                   {/* Results display after finishing exam */}
                   {activeResult && (
-                    <div className="bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 p-6 rounded-2xl space-y-4 shadow-xl">
+                    <div className="bg-emerald-950/10 border border-emerald-500/20 text-emerald-400 p-6 rounded-2xl space-y-4 shadow-xl">
                       <div className="flex items-center gap-3">
-                        <CheckCircle2 className="w-7 h-7 text-emerald-500 shrink-0" />
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
                         <div>
                           <h3 className="font-bold text-white text-base">Imtihon muvaffaqiyatli topshirildi!</h3>
-                          <p className="text-xs text-emerald-500/80">Ballaringiz reyting jadvaliga avtomatik kiritildi.</p>
+                          <p className="text-xs text-emerald-500/70">Ballaringiz reyting jadvaliga avtomatik kiritildi.</p>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-neutral-950/60 p-4 rounded-xl border border-neutral-900">
+                      <div className="grid grid-cols-3 gap-4 bg-zinc-950 p-4 rounded-xl border border-zinc-900">
                         <div>
-                          <span className="text-[10px] text-neutral-500 block uppercase font-bold">To'g'ri javob</span>
-                          <span className="text-2xl font-mono font-bold text-white">{activeResult.score} / 90</span>
+                          <span className="text-[10px] text-zinc-500 block uppercase font-bold tracking-wider">To'g'ri javob</span>
+                          <span className="text-xl font-mono font-bold text-white">{activeResult.score} <span className="text-xs text-zinc-500">/ 90</span></span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-neutral-500 block uppercase font-bold">Sarf qilingan vaqt</span>
-                          <span className="text-xl font-mono font-bold text-white">
+                          <span className="text-[10px] text-zinc-500 block uppercase font-bold tracking-wider">Sarf qilingan vaqt</span>
+                          <span className="text-base font-mono font-bold text-white">
                             {Math.floor(activeResult.timeSpent / 60)}m {activeResult.timeSpent % 60}s
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-neutral-500 block uppercase font-bold">50:50 Lifeline ishlatildi</span>
-                          <span className="text-xl font-mono font-bold text-white">{activeResult.helpUsed}</span>
+                          <span className="text-[10px] text-zinc-500 block uppercase font-bold tracking-wider">Lifeline</span>
+                          <span className="text-base font-mono font-bold text-white">{activeResult.helpUsed}</span>
                         </div>
                       </div>
 
                       <button
                         onClick={() => setActiveResult(null)}
-                        className="px-4 py-2 bg-neutral-900 hover:bg-neutral-850 text-white rounded-lg text-xs font-semibold"
+                        className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-xs font-semibold border border-zinc-800 transition-all cursor-pointer"
                       >
                         Yopish
                       </button>
@@ -590,24 +588,24 @@ export default function App() {
                   )}
 
                   {/* Top Hello & Starter panel */}
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
+                  <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 shadow-md flex flex-col md:flex-row items-center justify-between gap-8 hover:border-zinc-700 transition-colors duration-300">
                     <div className="space-y-3 flex-1 text-center md:text-left">
-                      <h2 className="text-2xl md:text-3xl font-extrabold text-white font-display">
+                      <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight font-display">
                         Assalomu alaykum, {userProfile.displayName}!
                       </h2>
-                      <p className="text-xs md:text-sm text-neutral-400 leading-relaxed max-w-xl">
+                      <p className="text-xs md:text-sm text-zinc-400 leading-relaxed max-w-xl">
                         Davlat test markazi (DTM) talablari asosida shakllantirilgan yangi imtihonda qatnashishga tayyormisiz? 
                         Sizga 90 ta unikal shuffllangan savol va 4 soat vaqt beriladi.
                       </p>
 
                       <div className="pt-2 flex flex-wrap justify-center md:justify-start gap-3">
                         {isTrialExpired() ? (
-                          <span className="text-xs bg-red-500/10 border border-red-500/25 text-red-400 px-3 py-1 rounded-full font-semibold">
-                            Sinov muddati tugagan! Premium talab qilinadi.
+                          <span className="text-xs bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-1 rounded-lg font-semibold">
+                            Sinov muddati tugagan! Premium obuna talab qilinadi.
                           </span>
                         ) : (
-                          <span className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-500 px-3 py-1 rounded-full font-semibold">
-                            Sizda kirish imkoniyati bor (Ochiq)
+                          <span className="text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-lg font-bold tracking-wide uppercase">
+                            Kirish imkoniyati: Ochiq 🟢
                           </span>
                         )}
                       </div>
@@ -615,39 +613,39 @@ export default function App() {
 
                     <button
                       onClick={handleStartExamAttempt}
-                      className="px-8 py-5 bg-amber-500 hover:bg-amber-600 text-neutral-950 font-extrabold rounded-2xl text-sm transition-all shadow-lg shadow-amber-500/10 flex items-center gap-3 cursor-pointer select-none shrink-0"
+                      className="px-7 py-4.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-zinc-950 font-extrabold rounded-xl text-xs transition-all shadow-lg shadow-amber-500/5 flex items-center gap-2.5 cursor-pointer select-none shrink-0 transform hover:-translate-y-0.5 active:translate-y-0 duration-200"
                     >
-                      <Play className="w-5 h-5 shrink-0" />
+                      <Play className="w-4.5 h-4.5 shrink-0" />
                       <span>Imtihonni Boshlash</span>
-                      <ArrowRight className="w-5 h-5 shrink-0" />
+                      <ArrowRight className="w-4.5 h-4.5 shrink-0" />
                     </button>
                   </div>
 
                   {/* Notification/Announcements section */}
                   <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                       <Bell className="w-4 h-4 text-amber-500" />
                       <span>E'lonlar va bildirishnomalar</span>
                     </h3>
 
                     {announcements.length === 0 ? (
-                      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 text-center text-xs text-neutral-500">
-                        Hozircha yangi e'lonlar mavjud emas.
+                      <div className="bg-zinc-900/30 border border-zinc-900 rounded-2xl p-8 text-center text-xs text-zinc-500">
+                        Hozircha yangi e'lonlar va bildirishnomalar mavjud emas.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {announcements.map((ann) => (
                           <div 
                             key={ann.id}
-                            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 hover:border-neutral-700 transition-all shadow-sm space-y-2.5"
+                            className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-5 hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-300 shadow-sm space-y-3"
                           >
                             <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-white text-xs">{ann.title}</h4>
-                              <span className="text-[9px] text-neutral-600 font-mono">
+                              <h4 className="font-bold text-white text-xs tracking-wide">{ann.title}</h4>
+                              <span className="text-[9px] text-zinc-500 font-mono">
                                 {new Date(ann.createdAt).toLocaleDateString()}
                               </span>
                             </div>
-                            <p className="text-[11px] text-neutral-400 leading-relaxed">
+                            <p className="text-[11px] text-zinc-400 leading-relaxed font-normal">
                               {ann.content}
                             </p>
                           </div>

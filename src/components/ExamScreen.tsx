@@ -497,8 +497,8 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
   if (isLoading || !session || !questions || questions.length === 0 || !questions[session.currentQuestionIndex]) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <RefreshCw className="w-10 h-10 text-amber-500 animate-spin" />
-        <p className="text-neutral-400 font-medium">Imtihon savollari va sessiya holati yuklanmoqda...</p>
+        <RefreshCw className="w-8 h-8 text-amber-500 animate-spin" />
+        <p className="text-zinc-400 text-sm font-medium">Imtihon savollari va sessiya holati yuklanmoqda...</p>
       </div>
     );
   }
@@ -522,52 +522,52 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
     <div id="exam-dashboard" className="max-w-5xl mx-auto px-4 py-6">
       {/* 1. Strictly Required Internet Status Banner */}
       {!isOnline && (
-        <div className="mb-6 bg-red-950/80 border border-red-500/30 text-red-200 px-4 py-3.5 rounded-xl flex items-center justify-between shadow-lg backdrop-blur-md animate-bounce">
+        <div className="mb-6 bg-red-950/20 border border-red-500/30 text-red-200 px-4 py-3.5 rounded-xl flex items-center justify-between shadow-lg backdrop-blur-md animate-bounce">
           <div className="flex items-center gap-3">
-            <WifiOff className="w-6 h-6 text-red-500 animate-pulse shrink-0" />
+            <WifiOff className="w-5 h-5 text-red-500 animate-pulse shrink-0" />
             <div>
-              <p className="font-bold">Tarmoq aloqasi yo'qolgan!</p>
-              <p className="text-xs text-red-300">Imtihon taymeri va harakatlar vaqtincha to'xtatildi. Javoblaringiz 100% xavfsiz.</p>
+              <p className="font-bold text-xs uppercase tracking-wide">Tarmoq aloqasi yo'qolgan!</p>
+              <p className="text-[11px] text-red-300 mt-0.5">Imtihon taymeri va harakatlar vaqtincha to'xtatildi. Javoblaringiz 100% xavfsiz.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs bg-red-500/20 px-3 py-1 rounded-lg border border-red-500/30">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          <div className="flex items-center gap-2 text-[10px] bg-red-500/20 px-3 py-1 rounded-lg border border-red-500/30 font-bold uppercase tracking-wider">
+            <RefreshCw className="w-3 h-3 animate-spin" />
             <span>Qayta ulanish...</span>
           </div>
         </div>
       )}
 
       {/* 2. Header and Timer bar */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 mb-6 flex flex-col md:flex-row gap-6 justify-between items-center shadow-xl">
+      <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 mb-6 flex flex-col md:flex-row gap-6 justify-between items-center shadow-xl">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-500 shrink-0">
-            <Clock className="w-6 h-6" />
+            <Clock className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs text-neutral-500 font-semibold uppercase tracking-wider block">Qolgan vaqt</span>
-            <span className="text-3xl font-mono font-bold text-white tracking-widest">{formatTime(session.durationLeft)}</span>
+            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest block">Qolgan vaqt</span>
+            <span className="text-2xl font-mono font-extrabold text-white tracking-widest">{formatTime(session.durationLeft)}</span>
           </div>
         </div>
 
         {/* Question Counter Grid */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-right">
-            <span className="text-xs text-neutral-500 font-semibold block">Joriy Savol</span>
-            <span className="text-lg font-bold text-white">{session.currentQuestionIndex + 1} / {questions.length}</span>
+            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest block">Joriy Savol</span>
+            <span className="text-base font-bold text-white">{session.currentQuestionIndex + 1} / {questions.length}</span>
           </div>
 
           {/* Help Lifeline Buttons */}
-          <div className="border-l border-neutral-800 pl-4 flex items-center gap-2">
+          <div className="border-l border-zinc-800 pl-4 flex items-center gap-2">
             <button
               onClick={handleUseHelp}
               disabled={session.helpChancesLeft <= 0 || !!session.helpUsedOnQuestions[currentQuestion.id] || !isOnline}
-              className={`px-4 py-2.5 rounded-xl border font-semibold text-xs flex items-center gap-2 transition-all ${
+              className={`px-4 py-2.5 rounded-xl border font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
                 session.helpChancesLeft > 0 && !session.helpUsedOnQuestions[currentQuestion.id]
-                  ? "bg-amber-500 hover:bg-amber-600 border-amber-600 text-neutral-950 cursor-pointer shadow-md shadow-amber-500/5"
-                  : "bg-neutral-950 border-neutral-800 text-neutral-500 cursor-not-allowed"
+                  ? "bg-amber-500 hover:bg-amber-650 border-amber-600 text-zinc-950 shadow-md shadow-amber-500/5"
+                  : "bg-zinc-950 border-zinc-850 text-zinc-600 cursor-not-allowed"
               }`}
             >
-              <HelpIcon className="w-4 h-4" />
+              <HelpCircle className="w-4 h-4 shrink-0" />
               <span>50:50 ({session.helpChancesLeft} qoldi)</span>
             </button>
           </div>
@@ -575,9 +575,9 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
       </div>
 
       {/* 3. Progress Bar */}
-      <div className="w-full bg-neutral-950 h-2 rounded-full mb-8 overflow-hidden border border-neutral-900">
+      <div className="w-full bg-zinc-950 h-1.5 rounded-full mb-8 overflow-hidden border border-zinc-900">
         <div 
-          className="bg-gradient-to-r from-amber-500 to-amber-600 h-full transition-all duration-300 rounded-full"
+          className="bg-gradient-to-r from-amber-450 to-amber-550 h-full transition-all duration-350 rounded-full"
           style={{ width: `${progressPercentage}%` }}
         />
       </div>
@@ -587,18 +587,18 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
         <div className="lg:col-span-3 space-y-6">
           <motion.div 
             key={currentQuestion.id}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 shadow-xl"
           >
             {/* Subject Tag */}
-            <span className="inline-block px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-xs font-semibold mb-4">
+            <span className="inline-block px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-[10px] font-bold uppercase tracking-wider mb-4">
               {currentQuestion.subject}
             </span>
 
             {/* Question Text */}
-            <h2 className="text-xl text-neutral-100 font-medium mb-8 leading-relaxed">
+            <h2 className="text-lg text-zinc-100 font-bold mb-8 leading-relaxed font-sans">
               {currentQuestion.questionText}
             </h2>
 
@@ -612,11 +612,11 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
                   return (
                     <div 
                       key={key} 
-                      className="p-4 bg-neutral-950/40 border border-neutral-900/50 rounded-xl text-neutral-700 text-sm flex items-center justify-between select-none opacity-40"
+                      className="p-4 bg-zinc-950/20 border border-zinc-900/40 rounded-xl text-zinc-600 text-xs flex items-center justify-between select-none opacity-40"
                     >
                       <span className="font-bold mr-3">{key}.</span>
                       <span className="flex-1 line-through">{currentQuestion.options[key]}</span>
-                      <span className="text-xs bg-neutral-900 px-2.5 py-1 rounded border border-neutral-800">O'chirilgan</span>
+                      <span className="text-[9px] bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800 font-bold uppercase tracking-wider">O'chirilgan</span>
                     </div>
                   );
                 }
@@ -626,14 +626,14 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
                     key={key}
                     onClick={() => handleSelectAnswer(key)}
                     disabled={!isOnline}
-                    className={`w-full p-4 rounded-xl border text-left text-sm flex items-center gap-4 transition-all duration-200 focus:outline-none ${
+                    className={`w-full p-4 rounded-xl border text-left text-xs flex items-center gap-4 transition-all duration-200 focus:outline-none cursor-pointer ${
                       isSelected
-                        ? "bg-amber-500 border-amber-600 text-neutral-950 font-semibold shadow-lg shadow-amber-500/10"
-                        : "bg-neutral-950 border-neutral-800 hover:border-neutral-700 text-neutral-300"
+                        ? "bg-amber-500 border-amber-600 text-zinc-950 font-bold shadow-lg shadow-amber-500/10"
+                        : "bg-zinc-950/40 border-zinc-850 hover:border-zinc-700 text-zinc-300"
                     }`}
                   >
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                      isSelected ? "bg-neutral-950 text-amber-500" : "bg-neutral-900 text-neutral-500"
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-extrabold shrink-0 ${
+                      isSelected ? "bg-zinc-950 text-amber-500" : "bg-zinc-900 text-zinc-500 border border-zinc-800"
                     }`}>
                       {key}
                     </span>
@@ -645,7 +645,7 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
 
             {/* Warning block */}
             {showWarning && !currentAnswer && (
-              <div className="mt-6 flex items-center gap-2 text-xs text-red-500 bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+              <div className="mt-6 flex items-center gap-2 text-[10px] font-bold text-red-400 bg-red-500/5 border border-red-500/10 p-3 rounded-xl uppercase tracking-wider">
                 <AlertTriangle className="w-4 h-4 shrink-0 animate-pulse" />
                 <span>Navbatdagi savolga o'tish uchun javob belgilanishi shart.</span>
               </div>
@@ -657,9 +657,9 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
             <button
               onClick={handlePrevQuestion}
               disabled={session.currentQuestionIndex === 0}
-              className="px-5 py-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 disabled:opacity-40 text-neutral-300 hover:text-white font-semibold rounded-xl text-sm flex items-center gap-2 transition-all cursor-pointer"
+              className="px-5 py-3 bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-850 disabled:opacity-30 text-zinc-300 hover:text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4 shrink-0" />
               <span>Orqaga</span>
             </button>
 
@@ -667,36 +667,36 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
               <button
                 onClick={() => handleFinishExam(false)}
                 disabled={isSubmitting || !currentAnswer || !isOnline}
-                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-40 text-white font-bold rounded-xl text-sm flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-40 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
               >
                 <span>Imtihonni yakunlash</span>
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle className="w-4 h-4 shrink-0" />
               </button>
             ) : (
               <button
                 onClick={handleNextQuestion}
                 disabled={!isOnline}
-                className={`px-6 py-3 font-semibold rounded-xl text-sm flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-6 py-3 font-bold rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer ${
                   currentAnswer 
-                    ? "bg-amber-500 hover:bg-amber-600 border border-amber-600 text-neutral-950 shadow-md shadow-amber-500/5"
-                    : "bg-neutral-900 border border-neutral-800 text-neutral-500"
+                    ? "bg-amber-500 hover:bg-amber-600 border border-amber-600 text-zinc-950 shadow-md shadow-amber-500/5"
+                    : "bg-zinc-900/60 border border-zinc-850 text-zinc-500"
                 }`}
               >
                 <span>Keyingi savol</span>
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-4 h-4 shrink-0" />
               </button>
             )}
           </div>
         </div>
 
         {/* 6. Quick Navigation Map Panel (Right Sidebar) */}
-        <div className="lg:col-span-1 bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-xl h-fit">
-          <h3 className="text-sm font-semibold text-neutral-300 mb-4 flex items-center gap-2">
-            <Award className="w-4 h-4 text-amber-500" />
+        <div className="lg:col-span-1 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 shadow-xl h-fit">
+          <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <Award className="w-4 h-4 text-amber-500 shrink-0" />
             <span>Savollar xaritasi</span>
           </h3>
-          <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
-            Istalgan savolga to'g'ridan-to'g'ri o'tish uchun quyidagi tugmalarni bosing:
+          <p className="text-[11px] text-zinc-500 mb-4 leading-relaxed font-medium">
+            Istalgan savolga to'g'ridan-to'g'ri o'tish uchun quyidagi kataklarni bosing:
           </p>
 
           {/* Questions Grid list */}
@@ -709,17 +709,16 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
                 <button
                   key={q.id}
                   onClick={() => {
-                    // Navigate only if answered or we click previous questions
                     if (isOnline) {
                       setSession({ ...session, currentQuestionIndex: idx });
                     }
                   }}
-                  className={`aspect-square w-full text-xs font-bold rounded-lg flex items-center justify-center transition-all ${
+                  className={`aspect-square w-full text-[10px] font-extrabold rounded-lg flex items-center justify-center transition-all cursor-pointer ${
                     isCurrent
-                      ? "bg-amber-500 text-neutral-950 scale-110 shadow-md ring-2 ring-amber-500/20"
+                      ? "bg-amber-500 text-zinc-950 scale-110 shadow-md ring-2 ring-amber-500/20"
                       : isAnswered
-                        ? "bg-neutral-950 text-emerald-500 border border-emerald-500/30"
-                        : "bg-neutral-950 border border-neutral-800 text-neutral-500 hover:border-neutral-700"
+                        ? "bg-zinc-950 text-emerald-400 border border-emerald-500/20"
+                        : "bg-zinc-950 border border-zinc-850 text-zinc-500 hover:border-zinc-700"
                   }`}
                 >
                   {idx + 1}
@@ -728,23 +727,23 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
             })}
           </div>
 
-          <div className="mt-6 border-t border-neutral-800 pt-4 space-y-2">
-            <div className="flex items-center gap-2 text-xs text-neutral-400">
-              <span className="w-3 h-3 rounded bg-amber-500 shrink-0" />
+          <div className="mt-6 border-t border-zinc-800 pt-4 space-y-2">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 shrink-0" />
               <span>Faol savol</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-400">
-              <span className="w-3 h-3 rounded bg-neutral-950 border border-emerald-500/30 shrink-0" />
+            <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-sm bg-zinc-950 border border-emerald-500/30 shrink-0" />
               <span>Belgilangan</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-400">
-              <span className="w-3 h-3 rounded bg-neutral-950 border border-neutral-800 shrink-0" />
+            <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-sm bg-zinc-950 border border-zinc-850 shrink-0" />
               <span>Belgilanmagan</span>
             </div>
           </div>
 
           {/* Emergency early finish */}
-          <div className="mt-6 border-t border-neutral-800 pt-4">
+          <div className="mt-6 border-t border-zinc-800 pt-4">
             <button
               onClick={() => {
                 if (confirm("Imtihonni muddatidan oldin yakunlamoqchimisiz? Belglanmagan savollar xato deb hisoblanadi.")) {
@@ -752,7 +751,7 @@ export default function ExamScreen({ userProfile, showToast, onExamFinished, onB
                 }
               }}
               disabled={isSubmitting || !isOnline}
-              className="w-full py-2.5 bg-red-950/40 hover:bg-red-950/80 border border-red-500/20 text-red-400 hover:text-red-300 text-xs font-semibold rounded-lg transition-all"
+              className="w-full py-2.5 bg-red-950/10 hover:bg-red-950/30 border border-red-500/15 text-red-400 hover:text-red-300 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
             >
               Muddatidan oldin yakunlash
             </button>

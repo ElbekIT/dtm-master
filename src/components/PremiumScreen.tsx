@@ -241,13 +241,13 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
   };
 
   return (
-    <div id="premium-portal" className="max-w-4xl mx-auto px-4 py-8 space-y-10">
+    <div id="premium-portal" className="max-w-4xl mx-auto px-6 py-8 space-y-10">
       {/* Visual Identity Title */}
-      <div className="text-center">
-        <h1 className="text-3xl font-extrabold text-white mb-3 font-display">
+      <div className="text-center space-y-3">
+        <h1 className="text-3xl font-extrabold text-white tracking-tight font-display">
           Premium Erkinlik
         </h1>
-        <p className="text-neutral-400 max-w-lg mx-auto text-sm leading-relaxed">
+        <p className="text-zinc-400 max-w-lg mx-auto text-xs leading-relaxed">
           Platformadan cheksiz foydalanish, 90 ta yangi doimiy imtihonlar, to'liq tahlillar va barcha yordam imkoniyatlarini ochish uchun obunani faollashtiring.
         </p>
       </div>
@@ -257,32 +257,32 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
         <div className="mb-4">
           <div className={`p-6 border rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl ${
             currentPayment.status === "pending" 
-              ? "bg-neutral-900 border-amber-500/30 text-amber-500" 
+              ? "bg-zinc-900/40 border-amber-500/20 text-amber-500" 
               : currentPayment.status === "approved" 
-                ? "bg-neutral-900 border-emerald-500/30 text-emerald-500" 
-                : "bg-neutral-900 border-red-500/30 text-red-500"
+                ? "bg-zinc-900/40 border-emerald-500/20 text-emerald-400" 
+                : "bg-zinc-900/40 border-red-500/20 text-red-400"
           }`}>
             <div className="flex items-center gap-4">
               <div className={`p-3.5 rounded-full border shrink-0 ${
                 currentPayment.status === "pending" 
                   ? "bg-amber-500/10 border-amber-500/20 text-amber-500" 
                   : currentPayment.status === "approved" 
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" 
-                    : "bg-red-500/10 border-red-500/20 text-red-500"
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" 
+                    : "bg-red-500/10 border-red-500/20 text-red-400"
               }`}>
-                {currentPayment.status === "pending" && <Hourglass className="w-8 h-8 animate-spin" />}
-                {currentPayment.status === "approved" && <Check className="w-8 h-8" />}
-                {currentPayment.status === "rejected" && <XCircle className="w-8 h-8" />}
+                {currentPayment.status === "pending" && <Hourglass className="w-6 h-6 animate-spin" />}
+                {currentPayment.status === "approved" && <Check className="w-6 h-6" />}
+                {currentPayment.status === "rejected" && <XCircle className="w-6 h-6" />}
               </div>
-              <div>
-                <span className="text-xs text-neutral-500 font-bold uppercase tracking-wider block">Kvitansiya Holati</span>
-                <span className="text-xl font-bold text-white capitalize">
+              <div className="text-center md:text-left">
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Kvitansiya Holati</span>
+                <span className="text-base font-bold text-white capitalize">
                   {currentPayment.status === "pending" && "Kutilmoqda (Tez orada tasdiqlanadi)"}
                   {currentPayment.status === "approved" && "Tasdiqlangan (Cheksiz kirish ochiq!)"}
                   {currentPayment.status === "rejected" && "Rad etilgan (Qayta kvitansiya yuklang)"}
                 </span>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Yuborilgan reja: <span className="font-semibold text-white uppercase">{currentPayment.plan}</span> ({currentPayment.amount.toLocaleString()} UZS) — {new Date(currentPayment.createdAt).toLocaleString()}
+                <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                  Yuborilgan reja: <span className="font-semibold text-white uppercase">{currentPayment.plan}</span> ({currentPayment.amount.toLocaleString()} UZS) — {new Date(currentPayment.createdAt).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -291,10 +291,10 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
               {currentPayment.status === "pending" && (
                 <button 
                   onClick={handleCancelRequest}
-                  className="px-5 py-2.5 bg-red-950/20 hover:bg-red-950/80 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5"
+                  className="px-5 py-2.5 bg-red-950/15 hover:bg-red-950/30 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  <span>So'rovni bekor qilish</span>
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>Bekor qilish</span>
                 </button>
               )}
 
@@ -303,7 +303,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                   onClick={() => {
                     location.reload();
                   }}
-                  className="px-5 py-2.5 bg-neutral-950 border border-neutral-850 text-neutral-300 rounded-xl hover:bg-neutral-800 hover:text-white transition-all text-xs font-semibold"
+                  className="px-5 py-2.5 bg-zinc-950 border border-zinc-800 text-zinc-300 rounded-xl hover:bg-zinc-800 hover:text-white transition-all text-xs font-semibold cursor-pointer"
                 >
                   Qayta Yuborish
                 </button>
@@ -319,7 +319,7 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
           {/* Plan Selector (Left side) */}
           <div className="lg:col-span-3 space-y-6">
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider">Obuna Rejasini Tanlang</h3>
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Obuna Rejasini Tanlang</h3>
               
               {(Object.keys(plans) as Array<'weekly' | 'monthly' | 'yearly'>).map((planKey) => {
                 const p = plans[planKey];
@@ -330,19 +330,19 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                     key={planKey}
                     type="button"
                     onClick={() => setSelectedPlan(planKey)}
-                    className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between gap-4 transition-all focus:outline-none ${
+                    className={`w-full p-5 rounded-2xl border text-left flex items-center justify-between gap-4 transition-all focus:outline-none cursor-pointer ${
                       isSelected 
-                        ? "bg-amber-500/10 border-amber-500 text-white" 
-                        : "bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-300"
+                        ? "bg-amber-500/5 border-amber-500 text-white shadow-md" 
+                        : "bg-zinc-900/40 border-zinc-850 hover:border-zinc-700 text-zinc-300"
                     }`}
                   >
                     <div className="flex-1">
-                      <span className="text-base font-bold block">{p.name}</span>
-                      <span className="text-xs text-neutral-500 mt-1 block leading-relaxed">{p.desc}</span>
+                      <span className="text-base font-bold block tracking-tight">{p.name}</span>
+                      <span className="text-xs text-zinc-500 mt-1 block leading-relaxed">{p.desc}</span>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-xl font-extrabold text-white">{p.price.toLocaleString()} UZS</span>
-                      <span className="text-xs text-neutral-500 block">/ {p.period}</span>
+                      <span className="text-lg font-extrabold text-white block">{p.price.toLocaleString()} UZS</span>
+                      <span className="text-[10px] text-zinc-500 block uppercase font-bold mt-0.5">/ {p.period}</span>
                     </div>
                   </button>
                 );
@@ -350,27 +350,27 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
             </div>
 
             {/* Core Card Details Card */}
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-md">
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-neutral-800">
-                <span className="text-sm font-semibold text-neutral-300">To'lov uchun karta ma'lumotlari:</span>
-                <span className="text-xs text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 font-medium">Humo / Uzcard</span>
+            <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 shadow-md">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-zinc-800/80">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">To'lov uchun karta:</span>
+                <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 font-bold uppercase tracking-wider">Humo / Uzcard</span>
               </div>
               <div className="space-y-4">
                 <div>
-                  <span className="text-xs text-neutral-500 block">Karta egasi</span>
+                  <span className="text-[10px] text-zinc-500 block uppercase font-bold tracking-wider">Karta egasi</span>
                   <span className="text-base font-bold text-white uppercase tracking-wide">{cardOwner}</span>
                 </div>
-                <div className="flex items-center justify-between bg-neutral-950 p-4 rounded-xl border border-neutral-850">
+                <div className="flex items-center justify-between bg-zinc-950 p-4 rounded-xl border border-zinc-850">
                   <div>
-                    <span className="text-xs text-neutral-500 block">Karta raqami</span>
-                    <span className="text-lg font-mono font-bold text-amber-500 tracking-wider">{cardNo}</span>
+                    <span className="text-[10px] text-zinc-500 block uppercase font-bold tracking-wider">Karta raqami</span>
+                    <span className="text-base font-mono font-bold text-amber-500 tracking-widest">{cardNo}</span>
                   </div>
                   <button
                     type="button"
                     onClick={copyCard}
-                    className="p-2.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white rounded-lg transition-all"
+                    className="p-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-all cursor-pointer transform active:scale-95 duration-100"
                   >
-                    <Copy className="w-5 h-5" />
+                    <Copy className="w-4 h-4 shrink-0" />
                   </button>
                 </div>
               </div>
@@ -380,24 +380,24 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
           {/* Receipt Uploader form (Right side) */}
           <div className="lg:col-span-2 space-y-6">
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-neutral-300 uppercase tracking-wider">To'lov Kvitansiyasi</h3>
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">To'lov Kvitansiyasi</h3>
               
-              <form onSubmit={handleSubmitReceipt} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-md space-y-6">
+              <form onSubmit={handleSubmitReceipt} className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6 shadow-md space-y-6">
                 <div className="space-y-3">
-                  <p className="text-xs text-neutral-400 leading-relaxed">
-                    Karta raqamiga to'lov qilgach, chek yoki kvitansiya rasmini quyidagi maydonga tashlang yoki bosing:
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Karta raqamiga to'lov qilgach, chek yoki kvitansiya rasmini quyidagi maydonga yuklang:
                   </p>
                   
-                  {/* Drag-and-drop / manual trigger frame */}
+                  {/* Drag-and-drop / manual uploader */}
                   <div 
                     onClick={() => fileInputRef.current?.click()}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all bg-neutral-950 min-h-[180px] ${
+                    className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all bg-zinc-950/80 min-h-[180px] ${
                       isDragging 
                         ? "border-amber-500 bg-amber-500/5" 
-                        : "border-neutral-800 hover:border-amber-500/40"
+                        : "border-zinc-850 hover:border-amber-500/40"
                     }`}
                   >
                     <input
@@ -413,19 +413,19 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                           src={previewUrl} 
                           alt="Receipt preview" 
                           referrerPolicy="no-referrer"
-                          className="max-h-[140px] rounded-lg border border-neutral-800 object-contain" 
+                          className="max-h-[140px] rounded-lg border border-zinc-850 object-contain" 
                         />
                       </div>
                     ) : (
-                      <div className="p-3.5 bg-neutral-900 rounded-full border border-neutral-850 text-neutral-400">
-                        <Upload className="w-6 h-6" />
+                      <div className="p-3 bg-zinc-900 rounded-full border border-zinc-800 text-zinc-400">
+                        <Upload className="w-5 h-5 shrink-0" />
                       </div>
                     )}
-                    <span className="text-xs text-neutral-300 font-bold text-center">
-                      {file ? file.name : "Kvitansiya rasmini yuklang"}
+                    <span className="text-xs text-zinc-300 font-bold text-center truncate max-w-[200px]">
+                      {file ? file.name : "Chek rasmini yuklang"}
                     </span>
-                    <span className="text-[10px] text-neutral-500 text-center">
-                      Faqat JPG, JPEG, PNG formatlari (Maks. 10MB)
+                    <span className="text-[9px] text-zinc-500 text-center tracking-wide uppercase">
+                      Faqat JPG, JPEG, PNG formatlari
                     </span>
                   </div>
                 </div>
@@ -433,16 +433,16 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
                 <button
                   type="submit"
                   disabled={isSubmitting || !file}
-                  className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 disabled:bg-neutral-800 text-neutral-950 disabled:text-neutral-600 font-extrabold rounded-xl transition-all shadow-md shadow-amber-500/5 flex items-center justify-center gap-2 text-xs uppercase tracking-wider"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 disabled:bg-zinc-800 text-zinc-950 disabled:text-zinc-650 font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader className="w-5 h-5 animate-spin" />
+                      <Loader className="w-4 h-4 animate-spin shrink-0" />
                       <span>Tasdiqlanmoqda...</span>
                     </>
                   ) : (
                     <>
-                      <Check className="w-5 h-5 shrink-0" />
+                      <Check className="w-4 h-4 shrink-0" />
                       <span>Kvitansiyani yuborish</span>
                     </>
                   )}
@@ -453,93 +453,93 @@ export default function PremiumScreen({ userProfile, currentPayment, showToast, 
         </div>
       )}
 
-      {/* 3. Premium Benefits Grid (Aesthetics & value proposition) */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 space-y-6">
+      {/* 3. Premium Benefits Grid */}
+      <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-8 space-y-6">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-500">
-            <Sparkles className="w-6 h-6" />
+          <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-500 shrink-0">
+            <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Nega DTM MASTER Premium?</h3>
-            <p className="text-xs text-neutral-400">Tayyorgarligingizni sifatli darajaga ko'taruvchi unikal imkoniyatlar ro'yxati</p>
+            <h3 className="text-lg font-bold text-white tracking-wide font-display">Nega DTM MASTER Premium?</h3>
+            <p className="text-xs text-zinc-500">Tayyorgarligingizni sifatli darajaga ko'taruvchi unikal imkoniyatlar ro'yxati</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
           <div className="flex items-start gap-3">
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <div>
               <h4 className="text-xs font-bold text-white">Cheksiz DTM Imtihonlar</h4>
-              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Har bir fan kesimidagi professional shuffllangan unikal savollar bazasi to'liq ochiq bo'ladi.</p>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">Har bir fan kesimidagi professional shuffllangan unikal savollar-bloklari to'liq ochiladi.</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white">Tahlillar va xatolar ustida ishlash</h4>
-              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Siz topshirgan har bir imtihonning xatolari ustida tahlillarga kirish va o'rganish imkoniyati.</p>
+              <h4 className="text-xs font-bold text-white font-sans">Xatolar ustida ishlash</h4>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">Siz topshirgan har bir imtihonning xatolari ustida tahlillarga kirish va o'rganish imkoniyati.</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <div>
               <h4 className="text-xs font-bold text-white">Reyting va Statistika</h4>
-              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Sizning eng yuqori natijalaringiz real vaqtda butun O'zbekiston miqyosida reytingda aks etadi.</p>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">Sizning eng yuqori natijalaringiz real vaqtda butun O'zbekiston miqyosida reytingda aks etadi.</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white">50:50 Yordam Imkoniyatlari</h4>
-              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Savollarga qiynalganda noto'g'ri variantlarni cheksiz o'chirish lifelaynlari faollashadi.</p>
+              <h4 className="text-xs font-bold text-white">50:50 Yordam Imkoniyati</h4>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">Savollarga qiynalganda noto'g'ri variantlarni o'chirish lifelaynlari faollashadi.</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white">Tezkor Yordam xizmati</h4>
-              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">To'lovingiz Telegram bot orqali real vaqtda tekshirilib, o'rtacha 5-10 daqiqada tasdiqlanadi.</p>
+              <h4 className="text-xs font-bold text-white font-sans">Tezkor Yordam xizmati</h4>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">To'lovingiz Telegram bot orqali real vaqtda tekshirilib, tez fursatda tasdiqlanadi.</p>
             </div>
           </div>
 
           <div className="flex items-start gap-3">
-            <div className="p-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
+            <div className="p-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg mt-0.5 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-white">Reklamasiz Interfeys</h4>
-              <p className="text-[11px] text-neutral-500 leading-relaxed mt-1">Dars o'tishda chalg'ituvchi har qanday cheklov va reklamalardan mutlaqo xoli toza interfeys.</p>
+              <h4 className="text-xs font-bold text-white font-sans font-display">Reklamasiz Interfeys</h4>
+              <p className="text-[11px] text-zinc-500 leading-relaxed mt-1">Dars o'tishda chalg'ituvchi har qanday cheklov va reklamalardan xoli toza interfeys.</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* 4. Tester/Developer Interactive helper block */}
-      <div className="bg-neutral-900/60 border border-neutral-800/60 rounded-2xl p-5 flex items-start gap-4">
+      <div className="bg-zinc-900/20 border border-zinc-800/80 rounded-2xl p-5 flex items-start gap-4">
         <div className="p-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl shrink-0">
-          <Info className="w-5 h-5" />
+          <Info className="w-5 h-5 shrink-0" />
         </div>
         <div className="space-y-1">
-          <span className="text-xs font-bold text-white uppercase block">Ishlab chiquvchi va Testerlar uchun ko'rsatma:</span>
-          <p className="text-xs text-neutral-400 leading-relaxed">
-            Sinov rejimida to'lovingizni bir zumda tasdiqlash va Premium imkoniyatlarini sinab ko'rish uchun pastki paneldagi 
-            <span className="text-amber-500 font-semibold mx-1">"Admin kirish"</span> havolasini bosing va maxfiy parolni kiriting: 
-            <span className="text-white bg-neutral-950 border border-neutral-800 px-2 py-0.5 rounded font-mono text-xs ml-1 font-bold">79178195327178195327</span>. 
-            So'ngra "To'lov so'rovlari" bo'limidan yuborilgan kvitansiyani yashil chek belgisi orqali faollashtiring.
+          <span className="text-xs font-bold text-white uppercase block">Sinov rejimida tezkor faollashtirish (Tester):</span>
+          <p className="text-xs text-zinc-400 leading-relaxed">
+            Sinov rejimida to'lovingizni bir zumda tasdiqlash uchun pastki paneldagi 
+            <span className="text-amber-500 font-semibold mx-1">"Admin kirish"</span> havolasini bosing va parolni kiriting: 
+            <span className="text-white bg-zinc-950 border border-zinc-850 px-2 py-0.5 rounded font-mono text-xs ml-1 font-bold">79178195327178195327</span>. 
+            So'ngra "To'lov so'rovlari" bo'limidan kvitansiyani yashil tasdiq belgisi orqali faollashtiring.
           </p>
         </div>
       </div>
