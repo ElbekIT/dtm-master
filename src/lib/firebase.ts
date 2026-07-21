@@ -122,15 +122,7 @@ export function withTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T
 }
 
 // High Quality pre-seeded contestants for Leaderboard to keep app looking alive Offline/Bypassed
-export const initialLeaderboardSeed = [
-  { uid: "seed_1", nickname: "Mavlonbek_99", direction: "Kiber Xavfsizlik", score: 186.2, correctCount: 88, timeUsed: "142:15", updatedAt: new Date().toISOString() },
-  { uid: "seed_2", nickname: "Kamola_IT", direction: "Dasturiy Injenering", score: 179.8, correctCount: 84, timeUsed: "155:40", updatedAt: new Date().toISOString() },
-  { uid: "seed_3", nickname: "Diyorbek_AI", direction: "Sun'iy Intellekt", score: 172.5, correctCount: 81, timeUsed: "138:22", updatedAt: new Date().toISOString() },
-  { uid: "seed_4", nickname: "Shahzod_Dev", direction: "Kompyuter Injenering", score: 165.4, correctCount: 78, timeUsed: "162:10", updatedAt: new Date().toISOString() },
-  { uid: "seed_5", nickname: "Jasur_Chempion", direction: "Dasturiy Injenering", score: 158.1, correctCount: 75, timeUsed: "125:05", updatedAt: new Date().toISOString() },
-  { uid: "seed_6", nickname: "Nodira_Math", direction: "Kiber Xavfsizlik", score: 144.6, correctCount: 68, timeUsed: "149:30", updatedAt: new Date().toISOString() },
-  { uid: "seed_7", nickname: "Bekzod_77", direction: "Sun'iy Intellekt", score: 120.3, correctCount: 55, timeUsed: "170:00", updatedAt: new Date().toISOString() }
-];
+export const initialLeaderboardSeed = [];
 
 // Pre-seeded high quality mock users for Admin panel offline evaluation
 export const initialUsersSeed = [

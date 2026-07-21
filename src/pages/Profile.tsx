@@ -110,6 +110,43 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
     setPromoError(null);
     setPromoSuccess(null);
 
+    // 1. Check for master promo codes
+    const masterPromoCodes = ["PROMOGOD", "PROMOCODE", "PROMOKOD", "DTM2026", "ELBEK"];
+    if (masterPromoCodes.includes(cleanInput)) {
+      try {
+        const updatedCurrentUser: User = {
+          ...currentUser,
+          premium: true,
+          subscriptionStatus: "Tastiqlandi",
+          subscriptionPlan: "yillik",
+          referredBy: cleanInput,
+          trialDaysAdded: 9999
+        };
+
+        // Update current user in Firestore
+        await setDoc(doc(db, "users", currentUser.uid), {
+          premium: true,
+          subscriptionStatus: "Tastiqlandi",
+          subscriptionPlan: "yillik",
+          referredBy: cleanInput,
+          trialDaysAdded: 9999
+        }, { merge: true });
+
+        setPromoSuccess("Siz maxsus 'PROMOGOD' master kodini faollashtirdingiz! Sizga umrbod PREMIUM imtiyozi taqdim etildi! 🎁🎉");
+        setPromoInput("");
+        
+        if (onUserUpdate) {
+          onUserUpdate(updatedCurrentUser);
+        }
+      } catch (err) {
+        console.error("Master promo activation failed:", err);
+        setPromoError("Tizimda xatolik yuz berdi.");
+      } finally {
+        setPromoLoading(false);
+      }
+      return;
+    }
+
     try {
       // 1. Find referrer with this promo code
       const q = query(collection(db, "users"), where("promoCode", "==", cleanInput));
