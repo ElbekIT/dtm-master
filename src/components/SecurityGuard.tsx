@@ -20,6 +20,20 @@ export default function SecurityGuard({ isActive, testSessionId, onSecurityViola
   useEffect(() => {
     if (!isActive) return;
 
+    // Bypass strict anti-cheat layers in development and iframe preview environments to allow smooth developer testing
+    const isDevelopmentMode = 
+      typeof window !== "undefined" && (
+        window.location.hostname === "localhost" ||
+        window.location.hostname.includes("127.0.0.1") ||
+        window.location.hostname.includes("asia-southeast1.run.app") ||
+        window.self !== window.top
+      );
+
+    if (isDevelopmentMode) {
+      console.log("SecurityGuard anti-cheat measures bypassed for development/preview iframe environment.");
+      return;
+    }
+
     // 1. Disable Right Click
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
