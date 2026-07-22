@@ -14,7 +14,7 @@ interface PremiumBuyProps {
   currentUser: User;
   onSuccess?: () => void;
   onUserUpdate?: (user: User) => void;
-  isBlocker?: boolean; // if true, acts as a full-page blocker
+  isBlocker?: boolean;
 }
 
 export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlocker = false }: PremiumBuyProps) {
@@ -27,7 +27,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Promo code states inside PremiumBuy
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -84,9 +83,9 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     }
   };
 
-  // Convert & Compress File to Lightweight Base64 JPEG
+  // Convert & Compress File to Lightweight Base64 JPEG - KUCHAYTIRILGAN
   const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
@@ -94,8 +93,10 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 1000;
-          const MAX_HEIGHT = 1000;
+          
+          // HAJMNI KICHIK QILISH UCHUN MAX SIZES
+          const MAX_WIDTH = 600;
+          const MAX_HEIGHT = 600;
           let width = img.width;
           let height = img.height;
 
@@ -116,15 +117,22 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
           const ctx = canvas.getContext("2d");
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+            
+            // QUALITY: 0.6 - YAXSHI SIFAT VA KICHIK HAJM
+            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.6);
+            
+            // HAJMNI TEKSHIR VA CONSOLDA KO'RSAT
+            const sizeInKB = (compressedBase64.length / 1024).toFixed(2);
+            console.log(`📸 Siqilgan rasm hajmi: ${sizeInKB} KB`);
+            
             resolve(compressedBase64);
           } else {
-            resolve(event.target?.result as string);
+            reject(new Error("Canvas konteksti olinmadi"));
           }
         };
-        img.onerror = () => resolve(event.target?.result as string);
+        img.onerror = () => reject(new Error("Rasm yuklanmadi"));
       };
-      reader.onerror = () => resolve("");
+      reader.onerror = () => reject(new Error("Fayl o'qilmadi"));
     });
   };
 
@@ -138,7 +146,21 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     setError(null);
 
     try {
+      console.log("🚀 To'lov jarayoni boshlanmoqda...");
+      
       const base64Image = await fileToBase64(file);
+      const sizeInKB = (base64Image.length / 1024).toFixed(2);
+      
+      console.log(`✅ Rasm siqildi: ${sizeInKB} KB`);
+      
+      // HAJM LIMITINI TEKSHIR
+      if (base64Image.length > 500000) {
+        setError(`❌ Rasm juda katta (${sizeInKB} KB). Iltimos, kichikroq rasm tanlang.`);
+        setSubmitting(false);
+        console.error("Rasm juda katta!");
+        return;
+      }
+
       const planDetails = plans[selectedPlan];
       const nowString = new Date().toISOString();
 
@@ -157,14 +179,28 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         updatedAt: nowString
       };
 
-      await setDoc(purchaseDocRef, purchaseData);
+      console.log("📤 To'lov berkarani Firestore'ga yuborilmoqda...");
+      
+      await setDoc(purchaseDocRef, purchaseData)
+        .then(() => console.log("✅ To'lov berkarani saqlanildi!"))
+        .catch((err) => {
+          console.error("❌ Purchase setDoc xatosi:", err);
+          throw new Error(`To'lov qo'shishda xatolik: ${err.message}`);
+        });
 
-      // Update user subscription state in Firestore & Realtime Database
+      // Update user subscription state in Firestore
+      console.log("📤 Foydalanuvchi ma'lumotlari yangilanmoqda...");
+      
       const userDocRef = doc(db, "users", currentUser.uid);
       await setDoc(userDocRef, {
         subscriptionStatus: "Tekshirilyapti",
         subscriptionPlan: selectedPlan
-      }, { merge: true });
+      }, { merge: true })
+        .then(() => console.log("✅ Foydalanuvchi ma'lumotlari yangilanildi!"))
+        .catch((err) => {
+          console.error("❌ User setDoc xatosi:", err);
+          throw new Error(`Foydalanuvchi yangilanishida xatolik: ${err.message}`);
+        });
 
       // Notify parent app if callback available
       const updatedUser: User = {
@@ -172,13 +208,17 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         subscriptionStatus: "Tekshirilyapti",
         subscriptionPlan: selectedPlan
       };
+      
+      console.log("📢 Parent komponentga bildirilmoqda...");
       if (onUserUpdate) onUserUpdate(updatedUser);
 
+      console.log("🎉 To'lov muvaffaqiyatli yuborildi!");
       setSuccess(true);
       if (onSuccess) onSuccess();
+      
     } catch (err: any) {
-      console.error("Purchase submit failed:", err);
-      setError("To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+      console.error("❌ Asosiy xatolik:", err);
+      setError(err.message || "To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     } finally {
       setSubmitting(false);
     }
