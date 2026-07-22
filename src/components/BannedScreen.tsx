@@ -112,9 +112,7 @@ export default function BannedScreen({ currentUser, onLogout }: BannedScreenProp
                 </div>
               </div>
               <p className="text-[10px] text-slate-400 font-mono text-center">
-                Tugash vaqti: {currentUser.bannedUntil && !isNaN(new Date(currentUser.bannedUntil).getTime())
-                  ? new Date(currentUser.bannedUntil).toLocaleString('uz-UZ')
-                  : "Muddatsiz"}
+                Tugash vaqti: {new Date(currentUser.bannedUntil!).toLocaleString('uz-UZ')}
               </p>
             </div>
           )}

@@ -14,7 +14,7 @@ interface PremiumBuyProps {
   currentUser: User;
   onSuccess?: () => void;
   onUserUpdate?: (user: User) => void;
-  isBlocker?: boolean;
+  isBlocker?: boolean; // if true, acts as a full-page blocker
 }
 
 export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlocker = false }: PremiumBuyProps) {
@@ -27,6 +27,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Promo code states inside PremiumBuy
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -40,9 +41,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     yillik: { name: "Yillik", price: 100000, label: "100,000 UZS / yil" },
   };
 
-  const TELEGRAM_BOT_TOKEN = "8793002359:AAHEv9w1N7x3Q1ud_UB1hxAJS2qAo4IEPDs";
-  const TELEGRAM_CHAT_ID = "8269163077";
-
   const handleCopyCard = () => {
     navigator.clipboard.writeText("4073420084569577");
     setCopied(true);
@@ -54,10 +52,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       const selectedFile = e.target.files[0];
       if (!selectedFile.type.startsWith("image/")) {
         setError("Faqat rasm formatidagi cheklarni yuklashingiz mumkin (JPG/PNG).");
-        return;
-      }
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        setError("Rasm o'lchami 5MB dan katta bo'lmasligi kerak.");
         return;
       }
       setFile(selectedFile);
@@ -84,143 +78,56 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         setError("Faqat rasm formatidagi cheklarni yuklashingiz mumkin (JPG/PNG).");
         return;
       }
-      if (selectedFile.size > 5 * 1024 * 1024) {
-        setError("Rasm o'lchami 5MB dan katta bo'lmasligi kerak.");
-        return;
-      }
       setFile(selectedFile);
       setPreviewUrl(URL.createObjectURL(selectedFile));
       setError(null);
     }
   };
 
+  // Convert & Compress File to Lightweight Base64 JPEG
   const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
-        resolve(event.target?.result as string);
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1000;
+          const MAX_HEIGHT = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+            resolve(compressedBase64);
+          } else {
+            resolve(event.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(event.target?.result as string);
       };
-      reader.onerror = () => reject(new Error("Fayl o'qilmadi"));
+      reader.onerror = () => resolve("");
     });
   };
 
-  // TELEGRAM'GA RASIM + XABARNOMA YUBORISH
-  const sendToTelegramBot = async (base64Image: string, planName: string, planPrice: number) => {
-    try {
-      const arr = base64Image.split(',');
-      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-      const bstr = atob(arr[1]);
-      const n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      for (let i = 0; i < n; i++) {
-        u8arr[i] = bstr.charCodeAt(i);
-      }
-      const blob = new Blob([u8arr], { type: mime });
-      
-      const formData = new FormData();
-      formData.append("chat_id", TELEGRAM_CHAT_ID);
-      formData.append("photo", blob, "receipt.jpg");
-
-      const caption = `
-🔔 YANGI TO'LOV SO'ROVI - TEKSHIRILISH UCHUN KUTILMOQDA
-
-👤 Foydalanuvchi: ${currentUser.nickname || currentUser.email}
-📧 Email: ${currentUser.email}
-📱 UID: ${currentUser.uid}
-
-💳 Tarif: ${planName}
-💰 Summa: ${planPrice.toLocaleString('uz-UZ')} UZS
-⏰ Vaqt: ${new Date().toLocaleString("uz-UZ")}
-
-📋 HOLAT: ⏳ TEKSHIRILISH UCHUN KUTILMOQDA
-
-✅ Admin panelida "Sotip olganlar" bo'limiga qarang
-✅ Chekni tekshiring va "Tastiqlash" tugmasini bosing
-❌ Chek noto'g'ri bo'lsa "Rad etish" tugmasini bosing
-      `.trim();
-
-      formData.append("caption", caption);
-      formData.append("parse_mode", "HTML");
-
-      const response = await fetch(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
-        { method: "POST", body: formData }
-      );
-
-      if (!response.ok) {
-        throw new Error("Telegram'ga rasm yuborilmadi");
-      }
-
-      console.log("✅ Rasm Telegram'ga yuborildi!");
-      return true;
-    } catch (err) {
-      console.error("❌ Telegram xatosi:", err);
-      throw err;
-    }
-  };
-
-  // FIREBASE'GA SAQLASH (Rasm yoq, faqat TEXT)
-  const saveToPurchaseRecord = async (planName: string, planPrice: number) => {
-    try {
-      const nowString = new Date().toISOString();
-
-      const purchaseDocRef = doc(db, "purchases", currentUser.uid);
-      const purchaseData: Purchase = {
-        id: currentUser.uid,
-        uid: currentUser.uid,
-        nickname: currentUser.nickname,
-        email: currentUser.email,
-        plan: selectedPlan,
-        price: planPrice,
-        receiptImage: "",
-        status: "Tekshirilyapti",
-        createdAt: nowString,
-        updatedAt: nowString
-      };
-
-      await setDoc(purchaseDocRef, purchaseData);
-      console.log("✅ To'lov recordi Firebase'ga saqlandi!");
-
-      // Foydalanuvchi statusini yangilash
-      const userDocRef = doc(db, "users", currentUser.uid);
-      await setDoc(userDocRef, {
-        subscriptionStatus: "Tekshirilyapti",
-        subscriptionPlan: selectedPlan
-      }, { merge: true });
-
-      console.log("✅ Foydalanuvchi statusi yangilanildi");
-      return true;
-    } catch (err) {
-      console.error("❌ Firebase xatosi:", err);
-      throw err;
-    }
-  };
-
-  // FOYDALANUVCHIGA BILDIRISHNOMA YUBORISH
-  const sendNotificationToUser = async () => {
-    try {
-      const notifId = `notif_${currentUser.uid}_${Date.now()}`;
-      const now = new Date().toISOString();
-
-      const notifData = {
-        id: notifId,
-        userId: currentUser.uid,
-        title: "✅ To'lov so'rovi qabul qilindi",
-        message: "Siz yuborgan to'lov cheki qabul qilindi va tekshirilish uchun kutilmoqda. Bu odatda 10-15 daqiqa vaqt oladi. Admins sizning chekingizni ko'rib chiqib, tastiqlansa premium huquq beriladi.",
-        type: "purchase_pending",
-        createdAt: now,
-        read: false
-      };
-
-      await setDoc(doc(db, "notifications", notifId), notifData);
-      console.log("✅ Foydalanuvchiga notification yuborildi");
-    } catch (err) {
-      console.error("Notification yuborish xatosi:", err);
-    }
-  };
-
-  // ASOSIY SUBMIT FUNCTIYASI
   const handleSubmit = async () => {
     if (!file) {
       setError("Iltimos, to'lov cheki rasmini yuklang.");
@@ -231,42 +138,47 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     setError(null);
 
     try {
-      console.log("🚀 To'lov jarayoni boshlanmoqda...");
-      
       const base64Image = await fileToBase64(file);
       const planDetails = plans[selectedPlan];
+      const nowString = new Date().toISOString();
 
-      console.log(`📸 Rasm konvertildi`);
-      console.log(`💳 Tarif: ${planDetails.name} - ${planDetails.price} UZS`);
+      // Create purchase document in Firestore
+      const purchaseDocRef = doc(db, "purchases", currentUser.uid);
+      const purchaseData: Purchase = {
+        id: currentUser.uid,
+        uid: currentUser.uid,
+        nickname: currentUser.nickname,
+        email: currentUser.email,
+        plan: selectedPlan,
+        price: planDetails.price,
+        receiptImage: base64Image,
+        status: "Tekshirilyapti",
+        createdAt: nowString,
+        updatedAt: nowString
+      };
 
-      // 1. TELEGRAM BOT'GA YUBORISH
-      console.log("📤 Telegram Bot'ga rasm va ma'lumot yuborilmoqda...");
-      await sendToTelegramBot(base64Image, planDetails.name, planDetails.price);
+      await setDoc(purchaseDocRef, purchaseData);
 
-      // 2. FIREBASE'GA SAQLASH
-      console.log("💾 Firebase'ga saqlash...");
-      await saveToPurchaseRecord(planDetails.name, planDetails.price);
+      // Update user subscription state in Firestore & Realtime Database
+      const userDocRef = doc(db, "users", currentUser.uid);
+      await setDoc(userDocRef, {
+        subscriptionStatus: "Tekshirilyapti",
+        subscriptionPlan: selectedPlan
+      }, { merge: true });
 
-      // 3. FOYDALANUVCHIGA NOTIFICATION YUBORISH
-      console.log("📬 Foydalanuvchiga notification yuborilmoqda...");
-      await sendNotificationToUser();
-
-      // 4. UI YANGILASH
+      // Notify parent app if callback available
       const updatedUser: User = {
         ...currentUser,
         subscriptionStatus: "Tekshirilyapti",
         subscriptionPlan: selectedPlan
       };
-
       if (onUserUpdate) onUserUpdate(updatedUser);
 
-      console.log("🎉 HAMMASI MUVAFFAQIYATLI!");
       setSuccess(true);
       if (onSuccess) onSuccess();
-      
     } catch (err: any) {
-      console.error("❌ Xatolik:", err);
-      setError(err.message || "To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+      console.error("Purchase submit failed:", err);
+      setError("To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     } finally {
       setSubmitting(false);
     }
@@ -285,7 +197,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       setSuccess(false);
       setError(null);
     } catch (err) {
-      console.error("Reset xatosi:", err);
+      console.error("Failed to reset subscriptionStatus:", err);
     }
   };
 
@@ -301,11 +213,10 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     setPromoError(null);
     setPromoSuccess(null);
 
+    // Master promo codes
     const masterPromoCodes = ["PROMOGOD", "PROMOCODE", "PROMOKOD", "DTM2026", "ELBEK"];
     if (masterPromoCodes.includes(cleanInput)) {
       try {
-        const now = new Date().toISOString();
-        
         const updatedCurrentUser: User = {
           ...currentUser,
           premium: true,
@@ -323,34 +234,11 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
           trialDaysAdded: 9999
         }, { merge: true });
 
-        // Admin'ga notification yuborish
-        const adminNotifId = `admin_notif_promo_${currentUser.uid}_${Date.now()}`;
-        await setDoc(doc(db, "admin_notifications", adminNotifId), {
-          id: adminNotifId,
-          type: "promo_activated",
-          message: `${currentUser.nickname} promokod "${cleanInput}" foydalanib PREMIUM olatdi!`,
-          user: currentUser.nickname,
-          promo: cleanInput,
-          createdAt: now
-        });
-
-        // Foydalanuvchiga notification
-        const userNotifId = `notif_promo_${currentUser.uid}_${Date.now()}`;
-        await setDoc(doc(db, "notifications", userNotifId), {
-          id: userNotifId,
-          userId: currentUser.uid,
-          title: "🎉 PREMIUM FAOLLASHTIRILDI!",
-          message: "Promokod muvaffaqiyatli! Siz umrbod PREMIUM imtiyoziga ega bo'ldingiz. Barcha testlar va savollar hozirda ochiq!",
-          type: "promo_success",
-          createdAt: now,
-          read: false
-        });
-
-        setPromoSuccess("✅ Promokod faollashtirildi! Umrbod PREMIUM oladingiz! 🎁🎉");
+        setPromoSuccess("Promokod faollashtirildi! Sizga umrbod PREMIUM imtiyozi taqdim etildi! 🎁🎉");
         setPromoInput("");
         if (onUserUpdate) onUserUpdate(updatedCurrentUser);
       } catch (err) {
-        console.error("Xatolik:", err);
+        console.error("Master promo activation error:", err);
         setPromoError("Tizimda xatolik yuz berdi.");
       } finally {
         setPromoLoading(false);
@@ -379,7 +267,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         return;
       }
 
-      const now = new Date().toISOString();
       const updatedCurrentUser: User = {
         ...currentUser,
         premium: true,
@@ -397,41 +284,18 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30
       }, { merge: true });
 
-      // Admin'ga notification
-      const adminNotifId = `admin_notif_promo_${currentUser.uid}_${Date.now()}`;
-      await setDoc(doc(db, "admin_notifications", adminNotifId), {
-        id: adminNotifId,
-        type: "promo_activated",
-        message: `${currentUser.nickname} promokod "${cleanInput}" foydalanib PREMIUM olatdi!`,
-        user: currentUser.nickname,
-        promo: cleanInput,
-        createdAt: now
-      });
-
-      // Foydalanuvchiga notification
-      const userNotifId = `notif_promo_${currentUser.uid}_${Date.now()}`;
-      await setDoc(doc(db, "notifications", userNotifId), {
-        id: userNotifId,
-        userId: currentUser.uid,
-        title: "🎉 PREMIUM FAOLLASHTIRILDI!",
-        message: "Promokod muvaffaqiyatli! 1 oylik PREMIUM obunasi faollashtirildi!",
-        type: "promo_success",
-        createdAt: now,
-        read: false
-      });
-
-      setPromoSuccess("✅ Promokod muvaffaqiyatli! 1 oylik PREMIUM oladingiz! 🎉");
+      setPromoSuccess(`Tabriklaymiz! Promokod muvaffaqiyatli ishlatildi. Premium taqdim etildi! 🎉`);
       setPromoInput("");
       if (onUserUpdate) onUserUpdate(updatedCurrentUser);
     } catch (err) {
-      console.error("Xatolik:", err);
+      console.error("Promo activation failed:", err);
       setPromoError("Promokodni tekshirishda xatolik yuz berdi.");
     } finally {
       setPromoLoading(false);
     }
   };
 
-  // 1. TEKSHIRILYAPTI
+  // 1. PENDING VERIFICATION UI
   if (currentUser.subscriptionStatus === "Tekshirilyapti") {
     return (
       <div className={`max-w-xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
@@ -444,26 +308,24 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
             <Clock className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">⏳ To'lovingiz tekshirilmoqda</h2>
+            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">To'lovingiz tekshirilmoqda</h2>
             <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-              Siz yuborgan to'lov cheki admin tomonidan tekshirilmoqda. Bu odatda 10-15 daqiqa vaqt oladi. Administator tastiqlasa, sizga xabarnoma yuboriladi.
+              Siz yuborgan to'lov cheki hozirda operatorlarimiz tomonidan tekshirilmoqda. Bu odatda 10-15 daqiqa vaqt oladi.
             </p>
           </div>
-          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-500 space-y-2">
-            <p>📋 Tarif: <span className="text-slate-800 font-extrabold">{plans[currentUser.subscriptionPlan || 'oylik'].name}</span></p>
-            <p>⏱️ Holat: <span className="text-amber-600 font-extrabold uppercase">Tekshirilmoqda</span></p>
-            <p>💬 Qo'shimcha xabar uchun "Xabarnomalar" bo'limini tekshiring</p>
+          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-500 space-y-1">
+            <p>Sotib olinmoqda: <span className="text-slate-800 font-extrabold">{plans[currentUser.subscriptionPlan || 'oylik'].name} tarif</span></p>
+            <p>Holat: <span className="text-amber-600 font-extrabold uppercase">Tekshirilmoqda</span></p>
           </div>
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl text-xs font-semibold text-blue-800 space-y-1">
-            <p>ℹ️ Ushbu vaqtda barcha imtihonlar va savollar sizga mavjud emas.</p>
-            <p>✅ Tastiqlangandan so'ng, hammasiga kirish huquqi beriladi.</p>
-          </div>
+          <p className="text-xs text-slate-400 font-semibold">
+            Sahifa to'lovingiz tasdiqlangach avtomatik ravishda yangilanadi va barcha testlar ochiladi.
+          </p>
         </motion.div>
       </div>
     );
   }
 
-  // 2. RAD ETILDI
+  // 2. REJECTED / NOT CONFIRMED UI
   if (currentUser.subscriptionStatus === "Tekshirilmadi") {
     return (
       <div className={`max-w-xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
@@ -476,15 +338,10 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
             <AlertTriangle className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">❌ To'lov rad etildi</h2>
+            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">To'lov rad etildi</h2>
             <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-              Afsuski, siz yuborgan to'lov cheki tasdiqlanmadi. Bu chek tasviri xira bo'lganligi, to'liq summani qoplamaganligi yoki boshqa sabablardan bo'lishi mumkin.
+              Afsuski, siz yuborgan to'lov tasdiqlanmadi. Bu chek tasviri xira bo'lganligi, to'liq summani qoplamaganligi yoki eskirganligi sababli bo'lishi mumkin.
             </p>
-          </div>
-          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl text-xs font-semibold text-red-800">
-            <p>🔄 Iltimos, chekni qaytadan yuboring.</p>
-            <p>📸 Chek rasmining sifatini yaxshi qilib aniqlang.</p>
-            <p>💰 Summa to'liq ko'rinib turganligini tekshiring.</p>
           </div>
           <button
             onClick={handleReset}
@@ -497,7 +354,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     );
   }
 
-  // 3. MUVAFFAQIYAT
+  // 3. PURCHASE COMPLETED SUCCESS UI
   if (success) {
     return (
       <div className={`max-w-xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
@@ -510,35 +367,20 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
             <CheckCircle2 className="w-8 h-8" />
           </div>
           <div className="space-y-2">
-            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">✅ So'rovingiz qabul qilindi!</h2>
+            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">So'rovingiz yuborildi!</h2>
             <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-              Siz yuborgan to'lov cheki qabul qilindi. Admin tomonidan tekshirilish uchun kutilmoqda. Bu odatda 10-15 daqiqa vaqt oladi.
+              To'lov chekingiz muvaffaqiyatli qabul qilindi. Tez orada operatorlarimiz tekshirib, premium huquqini taqdim etishadi. Rahmat!
             </p>
           </div>
-          <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-xs font-bold text-emerald-800 space-y-2">
-            <p className="flex items-center justify-center space-x-2">
-              <span>💳 Tarif:</span>
-              <span className="font-extrabold">{plans[selectedPlan].name}</span>
-            </p>
-            <p className="flex items-center justify-center space-x-2">
-              <span>💰 Summa:</span>
-              <span className="font-extrabold">{plans[selectedPlan].price.toLocaleString('uz-UZ')} UZS</span>
-            </p>
-            <p className="flex items-center justify-center space-x-2">
-              <span>⏳ Holat:</span>
-              <span className="font-extrabold text-amber-600">TEKSHIRILMOQDA</span>
-            </p>
-          </div>
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl text-xs font-semibold text-blue-800">
-            <p>📬 Tastiqlangandan so'ng sizga push notification yuboriladi.</p>
-            <p>✨ Admin tastiqlasa, barcha testlar va savollar avtomatik ochiladi.</p>
+          <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-500">
+            Kutilayotgan tarif: <span className="text-slate-800 font-extrabold">{plans[selectedPlan].name}</span>
           </div>
         </motion.div>
       </div>
     );
   }
 
-  // 4. ASOSIY FORMA
+  // 4. MAIN PURCHASE FORM UI
   return (
     <div className={`max-w-4xl mx-auto px-4 py-8 select-none ${isBlocker ? "mt-6" : ""}`}>
       {isBlocker && (
@@ -548,20 +390,20 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Bepul sinov muddati tugadi</h1>
           <p className="text-slate-400 text-sm font-semibold mt-1.5 max-w-lg mx-auto">
-            Platformadan to'liq va cheksiz foydalanish uchun Premium sotib oling. Barcha imtihonlar va savollar sizga ochiladi.
+            Sizning 2 kunlik bepul sinov muddatingiz tugadi. Platformadan to'liq va cheksiz foydalanish uchun Premium sotib oling.
           </p>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT - TARIFLAR VA KARTA */}
+        {/* LEFT CARD: Tariff Plans Selection & Payment Details */}
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-1 bg-primary-500" />
             
             <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
               <CreditCard className="w-5 h-5 text-primary-500" />
-              <span>1️⃣ Tarifni tanlang</span>
+              <span>1. Tarifni tanlang</span>
             </h3>
 
             <div className="grid grid-cols-1 gap-3">
@@ -590,8 +432,8 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
                       </div>
                     </div>
                     {plan.popular && (
-                      <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-lg border border-amber-100 uppercase">
-                        Eng ommabop ⭐
+                      <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-lg border border-amber-100 uppercase tracking-wider">
+                        Eng ommabop
                       </span>
                     )}
                   </button>
@@ -599,15 +441,16 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
               })}
             </div>
 
+            {/* Bank account details */}
             <div className="border-t border-slate-100 pt-6 space-y-4">
-              <h3 className="font-display font-extrabold text-slate-800 text-base">2️⃣ Karta raqamiga to'lov qiling</h3>
-              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h3 className="font-display font-extrabold text-slate-800 text-base">2. Karta raqamiga to'lov qiling</h3>
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 relative overflow-hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="text-[10px] text-slate-400 font-bold uppercase">To'lov uchun karta (HUMO / UZCARD)</div>
-                  <div className="font-mono text-xl font-extrabold text-slate-800">4073 4200 8456 9577</div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">To'lov uchun karta (Humo / Uzcard)</div>
+                  <div className="font-mono text-xl font-extrabold text-slate-800 tracking-wide">4073 4200 8456 9577</div>
                   <div className="text-xs text-slate-500 font-bold flex items-center space-x-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-primary-500" />
-                    <span>Elbek Qoriyev</span>
+                    <span>Egalik qiluvchi: Elbek Qoriyev</span>
                   </div>
                 </div>
                 <button
@@ -619,29 +462,29 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
                   }`}
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>{copied ? "✅ Nusxalandi!" : "Nusxalash"}</span>
+                  <span>{copied ? "Nusxalandi!" : "Nusxalash"}</span>
                 </button>
               </div>
 
               <div className="bg-primary-50 text-primary-800 p-4 rounded-xl text-xs font-bold leading-relaxed border border-primary-100/30 flex items-start space-x-2.5">
                 <ShieldCheck className="w-4 h-4 text-primary-500 flex-shrink-0 mt-0.5" />
-                <span>💡 To'lov qilingandan so'ng chek rasmini oling va quyida yuklang. Xavf emas, to'liq xavfsiz!</span>
+                <span>Ushbu karta to'liq xavfsiz va tizim bilan integratsiya qilingan. To'lov qilingandan so'ng tushgan chekni o'ng tarafdagi bo'limga rasm holatida (JPG/PNG) yuklang.</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT - CHEK YUKLASH */}
+        {/* RIGHT CARD: File Drag & Drop Receipt Upload */}
         <div className="lg:col-span-5">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 relative overflow-hidden">
             <div className="absolute top-0 inset-x-0 h-1 bg-indigo-500" />
             
             <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
               <Upload className="w-5 h-5 text-indigo-500" />
-              <span>3️⃣ Chekni yuklang</span>
+              <span>3. Chekni tasdiqlang</span>
             </h3>
 
-            {/* Drag & Drop */}
+            {/* Drag & Drop Area */}
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -664,14 +507,14 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
               />
 
               {previewUrl ? (
-                <div className="space-y-4 w-full">
+                <div className="space-y-4 w-full h-full">
                   <img
                     src={previewUrl}
                     alt="Chek rasmi"
                     className="max-h-[160px] mx-auto rounded-xl object-contain border border-slate-200"
                   />
-                  <p className="text-xs text-slate-400 font-bold truncate">
-                    ✅ {file?.name}
+                  <p className="text-xs text-slate-400 font-bold truncate px-2">
+                    Chek rasmi: {file?.name}
                   </p>
                 </div>
               ) : (
@@ -680,73 +523,68 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
                     <Upload className="w-6 h-6" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs font-bold text-slate-700">📸 Chek rasmini yuklang</p>
-                    <p className="text-[10px] text-slate-400 font-bold">yoki bu yerga torting (Drag & Drop)</p>
+                    <p className="text-xs font-bold text-slate-700">Chek rasmini yuklash uchun bosing</p>
+                    <p className="text-[10px] text-slate-400 font-bold">yoki rasmni bitta tortib tashlang (Drag & Drop)</p>
                   </div>
-                  <span className="inline-block px-3 py-1.5 bg-slate-100 text-slate-500 text-[9px] font-bold rounded-lg uppercase">
-                    JPG, PNG (Max 5MB)
+                  <span className="inline-block px-3 py-1.5 bg-slate-100 text-slate-500 text-[9px] font-bold rounded-lg border border-slate-200/50 uppercase tracking-wider">
+                    JPG, JPEG, PNG ruxsat etiladi
                   </span>
                 </div>
               )}
             </div>
 
             {error && (
-              <div className="text-xs text-red-500 font-bold bg-red-50 p-3 rounded-xl border border-red-100 text-center">
-                ❌ {error}
+              <div className="text-xs text-red-500 font-bold bg-red-50 p-3 rounded-xl border border-red-100/50 text-center">
+                {error}
               </div>
             )}
 
             <button
               onClick={handleSubmit}
               disabled={submitting || !file}
-              className="w-full py-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-all font-bold text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer"
+              className="w-full py-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-xl transition-all font-bold text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer shadow-primary-500/10"
             >
-              <span>{submitting ? "⏳ Yuborilmoqda..." : "✅ Yuborish"}</span>
+              <span>{submitting ? "Yuborilmoqda..." : "Tasdiqlash uchun yuborish"}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
-
-            <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-[11px] font-bold text-blue-800 text-center">
-              <p>⚠️ Chek rasmini tekshiring!</p>
-              <p className="text-[10px] mt-1">Chek bo'lim nomi, summa va vaqti bo'lishi kerak.</p>
-            </div>
           </div>
 
-          {/* PROMOKOD */}
-          <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-orange-50 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4 mt-6">
+          {/* Promokod Instant Activation Card */}
+          <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-orange-50 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4 mt-6 relative overflow-hidden">
             <div className="flex items-center space-x-2">
-              <div className="p-2 bg-amber-500 text-white rounded-xl">
-                <Tag className="w-5 h-5" />
+              <div className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
+                <Tag className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div>
-                <h4 className="font-display font-extrabold text-slate-900 text-base">🎁 Promokod</h4>
-                <p className="text-xs text-slate-500 font-semibold">Mavjud bo'lsa, premium bepul oling!</p>
+                <h4 className="font-display font-extrabold text-slate-900 text-base">Promokod Bilan Kirish</h4>
+                <p className="text-xs text-slate-500 font-semibold">Maxsus promokodingiz bo'lsa, uni kiriting</p>
               </div>
             </div>
 
-            <form onSubmit={handleApplyPromo} className="space-y-3">
+            <form onSubmit={handleApplyPromo} className="space-y-3 pt-1">
               <div className="flex space-x-2">
                 <input
                   type="text"
-                  placeholder="PROMOGOD"
+                  placeholder="Masalan: PROMOGOD yoki ELBEK"
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/20 uppercase"
+                  className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 uppercase tracking-wide"
                 />
                 <button
                   type="submit"
                   disabled={promoLoading}
-                  className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs rounded-xl cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-1"
+                  className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all disabled:opacity-50 flex items-center justify-center space-x-1"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>{promoLoading ? "..." : "OK"}</span>
+                  <span>{promoLoading ? "..." : "Faollashtirish"}</span>
                 </button>
               </div>
 
               {promoError && (
-                <p className="text-[11px] font-bold text-red-500 bg-red-50 p-2.5 rounded-lg">❌ {promoError}</p>
+                <p className="text-[11px] font-bold text-red-500 bg-red-50 p-2.5 rounded-lg border border-red-100">{promoError}</p>
               )}
               {promoSuccess && (
-                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg">✅ {promoSuccess}</p>
+                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100">{promoSuccess}</p>
               )}
             </form>
           </div>
