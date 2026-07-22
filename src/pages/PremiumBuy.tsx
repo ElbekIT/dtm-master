@@ -84,13 +84,47 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     }
   };
 
-  // Convert File to Base64
+  // Convert & Compress File to Lightweight Base64 JPEG
   const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1000;
+          const MAX_HEIGHT = 1000;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
+            resolve(compressedBase64);
+          } else {
+            resolve(event.target?.result as string);
+          }
+        };
+        img.onerror = () => resolve(event.target?.result as string);
+      };
+      reader.onerror = () => resolve("");
     });
   };
 
@@ -132,31 +166,37 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         subscriptionPlan: selectedPlan
       }, { merge: true });
 
-      // Forward to server/Telegram API
-      console.log("[Purchase] Forwarding receipt to Telegram...");
-      const response = await fetch("/api/premium/purchase", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          uid: currentUser.uid,
-          nickname: currentUser.nickname,
-          email: currentUser.email,
-          plan: selectedPlan,
-          price: planDetails.price,
-          receiptImage: base64Image
-        })
-      });
+      // Notify parent app if callback available
+      const updatedUser: User = {
+        ...currentUser,
+        subscriptionStatus: "Tekshirilyapti",
+        subscriptionPlan: selectedPlan
+      };
+      if (onUserUpdate) onUserUpdate(updatedUser);
 
-      if (response.ok) {
-        setSuccess(true);
-        if (onSuccess) onSuccess();
-      } else {
-        // Fallback or warning
-        console.warn("Telegram API returned non-ok status, but purchase registered in Firestore.");
-        setSuccess(true);
+      // Forward to server/Telegram API asynchronously with timeout guard
+      console.log("[Purchase] Forwarding receipt to Telegram...");
+      try {
+        await fetch("/api/premium/purchase", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            uid: currentUser.uid,
+            nickname: currentUser.nickname,
+            email: currentUser.email,
+            plan: selectedPlan,
+            price: planDetails.price,
+            receiptImage: base64Image
+          })
+        });
+      } catch (tgErr) {
+        console.warn("[Purchase] Telegram notification request handled with warning:", tgErr);
       }
+
+      setSuccess(true);
+      if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error("Purchase submit failed:", err);
       setError("To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");

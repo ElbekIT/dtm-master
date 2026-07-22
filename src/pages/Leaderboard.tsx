@@ -19,29 +19,84 @@ export default function Leaderboard() {
     const fetchLeaderboard = async () => {
       setLoading(true);
       try {
-        const q = query(
-          collection(db, "leaderboard"),
-          orderBy("score", "desc"),
-          limit(100)
-        );
-        
-        let querySnapshot;
-        try {
-          querySnapshot = await getDocs(q);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.LIST, "leaderboard");
-        }
+        const mergedEntriesMap: Record<string, LeaderboardEntry> = {};
 
-        if (querySnapshot) {
-          const list: LeaderboardEntry[] = [];
-          querySnapshot.forEach((doc) => {
-            const data = doc.data() as LeaderboardEntry;
-            if (data && data.score > 0) {
-              list.push(data);
+        // 1. Fetch from leaderboard collection
+        try {
+          const lSnap = await getDocs(collection(db, "leaderboard"));
+          lSnap.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            if (data && data.uid && data.score > 0) {
+              mergedEntriesMap[data.uid] = {
+                uid: data.uid,
+                nickname: data.nickname || "Abituriyent",
+                direction: data.direction || "O'quvchi",
+                score: data.score || 0,
+                correctCount: data.correctCount || 0,
+                timeUsed: data.timeUsed || "00:00",
+                hintsUsed: data.hintsUsed || 0,
+                updatedAt: data.updatedAt || new Date().toISOString()
+              };
             }
           });
-          setEntries(list);
+        } catch (err) {
+          console.warn("Failed to fetch leaderboard collection:", err);
         }
+
+        // 2. Fetch from users collection to make sure every registered user with a score is present
+        try {
+          const uSnap = await getDocs(collection(db, "users"));
+          uSnap.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            if (data && data.uid && data.score > 0) {
+              const existing = mergedEntriesMap[data.uid];
+              const highestScore = existing ? Math.max(existing.score, data.score) : data.score;
+              mergedEntriesMap[data.uid] = {
+                uid: data.uid,
+                nickname: data.nickname || existing?.nickname || "Abituriyent",
+                direction: data.selectedDirection || existing?.direction || "O'quvchi",
+                score: highestScore,
+                correctCount: existing?.correctCount || Math.round((data.score / 189) * 90),
+                timeUsed: existing?.timeUsed || "35:00",
+                hintsUsed: existing?.hintsUsed || 0,
+                updatedAt: data.lastLogin || new Date().toISOString()
+              };
+            }
+          });
+        } catch (err) {
+          console.warn("Failed to fetch users collection for leaderboard:", err);
+        }
+
+        // 3. Fetch server-side users database to ensure 100% sync
+        try {
+          const sRes = await fetch("/api/admin/users");
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            const serverUsers = sData.users || [];
+            serverUsers.forEach((u: any) => {
+              if (u && u.uid && u.score > 0) {
+                const existing = mergedEntriesMap[u.uid];
+                const highestScore = existing ? Math.max(existing.score, u.score) : u.score;
+                mergedEntriesMap[u.uid] = {
+                  uid: u.uid,
+                  nickname: u.nickname || existing?.nickname || "Abituriyent",
+                  direction: u.selectedDirection || existing?.direction || "O'quvchi",
+                  score: highestScore,
+                  correctCount: existing?.correctCount || Math.round((u.score / 189) * 90),
+                  timeUsed: existing?.timeUsed || "35:00",
+                  hintsUsed: existing?.hintsUsed || 0,
+                  updatedAt: u.lastLogin || new Date().toISOString()
+                };
+              }
+            });
+          }
+        } catch (err) {
+          console.warn("Failed to fetch server users for leaderboard:", err);
+        }
+
+        // Convert map to array and sort descending by score
+        const list = Object.values(mergedEntriesMap).sort((a, b) => b.score - a.score);
+        setEntries(list);
       } catch (err) {
         console.error("Leaderboard fetch failed:", err);
       } finally {

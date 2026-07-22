@@ -124,21 +124,9 @@ export function withTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T
 // High Quality pre-seeded contestants for Leaderboard to keep app looking alive Offline/Bypassed
 export const initialLeaderboardSeed: any[] = [];
 
-// Pre-seeded high quality mock users for Admin panel offline evaluation (scores set to 0 for fresh leaderboard)
-export const initialUsersSeed = [
-  { uid: "seed_1", nickname: "Mavlonbek_99", email: "mavlonbek@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Toshkent shahri", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "MAVLONBEK_S1", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "oylik" },
-  { uid: "seed_2", nickname: "Kamola_IT", email: "kamola98@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Samarqand", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "KAMOLA_S2", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "oylik" },
-  { uid: "seed_3", nickname: "Diyorbek_AI", email: "diyorbek@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Andijon", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "DIYORBEK_S3", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "haftalik" },
-  { uid: "seed_4", nickname: "Shahzod_Dev", email: "shahzod@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Buxoro", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "SHAHZOD_S4", trialDaysAdded: 0, subscriptionStatus: "Tastiqlandi", premium: true, subscriptionPlan: "yillik" },
-  { uid: "seed_5", nickname: "Jasur_Chempion", email: "jasur@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Xorazm", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "JASUR_S5", trialDaysAdded: 0, subscriptionStatus: "none", premium: false },
-  { uid: "seed_6", nickname: "Nodira_Math", email: "nodira@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Farg'ona", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "NODIRA_S6", trialDaysAdded: 0, subscriptionStatus: "none", premium: false },
-  { uid: "seed_7", nickname: "Bekzod_77", email: "bekzod@gmail.com", role: "user", score: 0, testsSolved: 0, country: "Navoiy", createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), promoCode: "BEKZOD_S7", trialDaysAdded: 0, subscriptionStatus: "none", premium: false }
-];
-
-// Pre-seeded purchase request for Admin panel offline evaluation
-export const initialPurchasesSeed = [
-  { id: "seed_5", uid: "seed_5", nickname: "Jasur_Chempion", email: "jasur@gmail.com", plan: "oylik", price: "25000", receiptImage: "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&w=600&q=80", status: "Tekshirilyapti", createdAt: new Date().toISOString() }
-];
+// Seed collections set to empty so only real Firebase Database data is shown
+export const initialUsersSeed: any[] = [];
+export const initialPurchasesSeed: any[] = [];
 
 // Safe Firestore wrappers that fallback instantly on timeout or failure
 export async function getDoc(docRef: any): Promise<any> {

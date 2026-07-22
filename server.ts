@@ -9,7 +9,8 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // In-memory active test sessions (securely stored on server-side)
 const activeSessions: Record<string, {
@@ -824,6 +825,17 @@ app.delete("/api/admin/users/:uid", (req, res) => {
   res.json({ success: true });
 });
 
+app.post("/api/users/delete", (req, res) => {
+  const { uid } = req.body;
+  if (uid) {
+    usersListLocal = usersListLocal.filter(u => u.uid !== uid);
+    bannedUsers.delete(uid);
+    delete userBans[uid];
+    saveUsersDb();
+  }
+  res.json({ success: true });
+});
+
 // Premium Purchase Endpoint - Sends receipt details and image to Telegram bot
 app.post("/api/premium/purchase", async (req, res) => {
   const { uid, nickname, email, plan, price, receiptImage } = req.body;
@@ -844,6 +856,9 @@ app.post("/api/premium/purchase", async (req, res) => {
                   `<i>Tasdiqlash yoki rad etish uchun DTM MASTER Admin Paneliga kiring.</i>`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout max for Telegram
+
     const base64Data = receiptImage.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64Data, "base64");
     
@@ -855,40 +870,53 @@ app.post("/api/premium/purchase", async (req, res) => {
     formData.append("parse_mode", "HTML");
 
     console.log(`[Telegram Bot] Sending photo to chat ${telegramChatId}...`);
-    const tgRes = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
-      method: "POST",
-      body: formData
-    });
+    let tgRes;
+    try {
+      tgRes = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      console.warn("[Telegram Bot] sendPhoto timed out or failed, sending fallback text message...", e.message);
+    }
 
-    const tgData = await tgRes.json();
-    if (tgData.ok) {
+    if (tgRes && tgRes.ok) {
       console.log(`[Telegram Bot] Photo sent successfully!`);
       return res.json({ success: true });
     } else {
-      console.error("[Telegram Bot] Photo send failed, falling back to text-only message:", tgData);
+      console.error("[Telegram Bot] Photo send failed or timed out, falling back to text message");
       
-      const textMsg = `<b>📥 YANGI TO'LOV SO'ROVI (Chek rasmisiz)</b>\n\n` +
-                      `👤 <b>Abituriyent:</b> ${nickname}\n` +
+      const textMsg = `<b>📥 YANGI TO'LOV SO'ROVI</b>\n\n` +
+                      `👤 <b>Abituriyent:</b> ${nickname} (UID: ${uid})\n` +
                       `💎 <b>Tarif:</b> ${plan.toUpperCase()}\n` +
                       `💰 <b>To'lov:</b> ${Number(price).toLocaleString('uz-UZ')} UZS\n` +
-                      `<i>Eslatma: Chek rasmi yuborishda muammo bo'ldi, lekin so'rov muvaffaqiyatli saqlandi.</i>`;
+                      `<i>Chek rasmi saqlandi. Admin panelida ko'rishingiz mumkin.</i>`;
                       
-      const textRes = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: telegramChatId,
-          text: textMsg,
-          parse_mode: "HTML"
-        })
-      });
-      const textData = await textRes.json();
-      return res.json({ success: textData.ok });
+      const textController = new AbortController();
+      const textTimeout = setTimeout(() => textController.abort(), 5000);
+
+      try {
+        await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: telegramChatId,
+            text: textMsg,
+            parse_mode: "HTML"
+          }),
+          signal: textController.signal
+        });
+        clearTimeout(textTimeout);
+      } catch (err) {
+        clearTimeout(textTimeout);
+      }
+      return res.json({ success: true });
     }
   } catch (err: any) {
     console.error("Telegram forwarding error:", err);
-    // Even if Telegram fails, we return success so the user does not get stuck,
-    // since the record is already saved in Firestore on the client side.
     return res.json({ success: true, warning: "Telegram botga yuborilmadi: " + err.message });
   }
 });

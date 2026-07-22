@@ -98,6 +98,25 @@ export default function ResultScreen({ currentUser, results, onReturnHome }: Res
               hintsUsed: totalHintsUsed,
               lastLogin: new Date().toISOString()
             }, { merge: true });
+
+            // Sync with backend server
+            try {
+              await fetch("/api/users/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  uid: currentUser.uid,
+                  nickname: currentUser.nickname,
+                  email: currentUser.email,
+                  score: highestScore,
+                  testsSolved: currentSolvedCount,
+                  selectedDirection: directionName,
+                  lastLogin: new Date().toISOString()
+                })
+              });
+            } catch (syncErr) {
+              console.warn("Server user sync error:", syncErr);
+            }
           }
         } catch (err) {
           handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.uid}`);

@@ -5,9 +5,11 @@
 
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc } from "firebase/firestore";
-import { auth, db, getDoc } from "./lib/firebase";
+import { doc, collection, query, where, getDocs } from "firebase/firestore";
+import { auth, db, getDoc, setDoc } from "./lib/firebase";
 import { User, Question } from "./types";
+import { PendingReferral } from "./lib/promo";
+import ReferralRewardModal from "./components/ReferralRewardModal";
 import { HelpCircle, Award, CheckCircle2, ShieldCheck, Cpu } from "lucide-react";
 
 // Pages
@@ -26,12 +28,25 @@ import { hasActiveAccess } from "./lib/premium";
 
 // Components
 import Header from "./components/Header";
+import LoadingScreen from "./components/LoadingScreen";
 
 // Offline Test Generator
 import { generateClientTestSession } from "./lib/testGenerator";
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const getInitialUser = (): User | null => {
+    try {
+      const cached = localStorage.getItem("dtm_cached_user");
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (e) {
+      console.warn("Failed to load cached user:", e);
+    }
+    return null;
+  };
+
+  const [currentUser, setCurrentUser] = useState<User | null>(getInitialUser);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentTab, setCurrentTab] = useState<string>("home");
 
@@ -54,6 +69,44 @@ export default function App() {
     passed: boolean;
   } | null>(null);
 
+  // Referral Reward Modal for Promo Code Owner
+  const [pendingReferral, setPendingReferral] = useState<PendingReferral | null>(null);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const checkPendingReferrals = async () => {
+      try {
+        const q = query(
+          collection(db, "referrals"),
+          where("ownerUid", "==", currentUser.uid),
+          where("shownToOwner", "==", false)
+        );
+        const querySnap = await getDocs(q);
+        if (!querySnap.empty) {
+          const firstDoc = querySnap.docs[0];
+          const data = { id: firstDoc.id, ...firstDoc.data() } as PendingReferral;
+          setPendingReferral(data);
+        }
+      } catch (err) {
+        console.warn("Pending referral check failed:", err);
+      }
+    };
+
+    checkPendingReferrals();
+  }, [currentUser?.uid]);
+
+  const handleDismissReferralReward = async () => {
+    if (!pendingReferral) return;
+    try {
+      await setDoc(doc(db, "referrals", pendingReferral.id), { shownToOwner: true }, { merge: true });
+    } catch (err) {
+      console.error("Failed to mark referral as shown:", err);
+    } finally {
+      setPendingReferral(null);
+    }
+  };
+
   const syncUserWithBackend = async (user: User) => {
     try {
       await fetch("/api/users/sync", {
@@ -70,13 +123,13 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
-    // Safety backup timeout to force app state to load after 2.5 seconds
+    // Safety backup timeout to force app state to load after 2.0 seconds
     const safetyTimer = setTimeout(() => {
       if (active && authChecking) {
-        console.warn("Firebase Auth timed out. Loading in offline-ready state.");
+        console.warn("Firebase Auth check completed.");
         setAuthChecking(false);
       }
-    }, 2500);
+    }, 2000);
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!active) return;
@@ -88,20 +141,54 @@ export default function App() {
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
             setCurrentUser(userData);
+            try {
+              localStorage.setItem("dtm_cached_user", JSON.stringify(userData));
+            } catch (e) {}
             syncUserWithBackend(userData);
             if (userData.role === "admin") {
               setCurrentTab("admin");
             }
           } else {
-            // First time login - clean reset to trigger signup nickname step in Login page
-            setCurrentUser(null);
+            // Google login or first time user without firestore doc - auto save into Firestore!
+            const defaultNickname = firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split("@")[0] : `Abituriyent_${firebaseUser.uid.substring(0, 4)}`);
+            const cleanNick = defaultNickname.toUpperCase().replace(/[^A-Z0-9]/g, "");
+            const newGoogleUser: User = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              photoURL: firebaseUser.photoURL,
+              nickname: defaultNickname,
+              createdAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+              score: 0,
+              testsSolved: 0,
+              country: "O'zbekiston",
+              role: "user",
+              promoCode: `${cleanNick}_${firebaseUser.uid.substring(0, 4).toUpperCase()}`,
+              trialDaysAdded: 0,
+              subscriptionStatus: "none",
+              premium: false
+            };
+
+            try {
+              await setDoc(userDocRef, newGoogleUser, { merge: true });
+            } catch (saveErr) {
+              console.warn("Could not auto-create user in Firestore:", saveErr);
+            }
+
+            setCurrentUser(newGoogleUser);
+            try {
+              localStorage.setItem("dtm_cached_user", JSON.stringify(newGoogleUser));
+            } catch (e) {}
+            syncUserWithBackend(newGoogleUser);
           }
         } catch (err) {
           console.error("Error fetching authenticated user document:", err);
-          setCurrentUser(null);
         }
       } else {
-        setCurrentUser(null);
+        // If not authenticated in firebase and no cached user, reset
+        if (!localStorage.getItem("dtm_cached_user")) {
+          setCurrentUser(null);
+        }
       }
       
       clearTimeout(safetyTimer);
@@ -117,16 +204,25 @@ export default function App() {
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
+    try {
+      localStorage.setItem("dtm_cached_user", JSON.stringify(user));
+    } catch (e) {}
     syncUserWithBackend(user);
     setCurrentTab(user.role === "admin" ? "admin" : "home");
   };
 
   const handleUserUpdate = (updatedUser: User) => {
     setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem("dtm_cached_user", JSON.stringify(updatedUser));
+    } catch (e) {}
     syncUserWithBackend(updatedUser);
   };
 
   const handleLogout = async () => {
+    try {
+      localStorage.removeItem("dtm_cached_user");
+    } catch (e) {}
     await signOut(auth);
     setCurrentUser(null);
     setCurrentTab("home");
@@ -180,12 +276,7 @@ export default function App() {
   };
 
   if (authChecking) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-primary-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-500 font-semibold font-display text-sm">DTM MASTER yuklanmoqda...</p>
-      </div>
-    );
+    return <LoadingScreen message="Foydalanuvchi ma'lumotlari yuklanmoqda..." />;
   }
 
   // Not logged in -> Render login page
@@ -250,7 +341,13 @@ export default function App() {
 
         {currentTab === "notifications" && <Notifications currentUser={currentUser} />}
 
-        {currentTab === "profile" && <Profile currentUser={currentUser} onUserUpdate={handleUserUpdate} />}
+        {currentTab === "profile" && (
+          <Profile 
+            currentUser={currentUser} 
+            onUserUpdate={handleUserUpdate} 
+            onDeleteAccount={handleLogout} 
+          />
+        )}
 
         {currentTab === "admin" && currentUser.role === "admin" && <Admin />}
 
@@ -317,6 +414,18 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {/* Referral Reward Modal for Promo Code Owner */}
+      {pendingReferral && (
+        <ReferralRewardModal
+          isOpen={!!pendingReferral}
+          onClose={handleDismissReferralReward}
+          title="TABRIKLAYMIZ! 🎉"
+          badgeText="Do'st taklifi bonusi"
+          message={`Siz saytga yangi foydalanuvchini olib kirdingiz! Do'stingiz (${pendingReferral.friendNickname}) siz bergan promo-kodni (${pendingReferral.usedPromoCode}) ishlatdi va sizga 2 kunlik BEPUL VIP Premium taqdim etildi! VIP imkoniyatlaridan unumli foydalaning! 🚀🎁`}
+          rewardText="+2 Kunlik Bepul VIP Premium"
+        />
+      )}
     </div>
   );
 }

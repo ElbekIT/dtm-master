@@ -7,21 +7,30 @@ import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { 
   User as UserIcon, BookOpen, Star, Trophy, Mail, Calendar, MapPin, 
-  ShieldAlert, FileText, CheckCircle2, XCircle, Copy, Gift, Sparkles, Hourglass, Check
+  ShieldAlert, FileText, CheckCircle2, XCircle, Copy, Gift, Sparkles, Hourglass, Check,
+  Trash2, AlertTriangle
 } from "lucide-react";
-import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
-import { collection, query, where, orderBy, doc, setDoc } from "firebase/firestore";
+import { db, auth, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
+import { collection, query, where, orderBy, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { deleteUser, signOut } from "firebase/auth";
 import { User } from "../types";
 import { getAccessRemainingText, hasActiveAccess } from "../lib/premium";
+import { redeemPromoCode } from "../lib/promo";
+import ReferralRewardModal from "../components/ReferralRewardModal";
 
 interface ProfileProps {
   currentUser: User;
   onUserUpdate?: (updatedUser: User) => void;
+  onDeleteAccount?: () => Promise<void>;
 }
 
-export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
+export default function Profile({ currentUser, onUserUpdate, onDeleteAccount }: ProfileProps) {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Account deletion state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Statistics calculations
   const [stats, setStats] = useState({
@@ -35,6 +44,9 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+  const [promoModalOpen, setPromoModalOpen] = useState(false);
+  const [promoRewardMessage, setPromoRewardMessage] = useState("");
+  const [promoRewardTitle, setPromoRewardTitle] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
 
   useEffect(() => {
@@ -96,7 +108,7 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
     const cleanInput = promoInput.trim().toUpperCase();
     if (!cleanInput) return;
 
-    if (currentUser.referredBy) {
+    if (currentUser.referredBy || currentUser.usedPromoCode) {
       setPromoError("Siz allaqachon promo kod faollashtirgansiz!");
       return;
     }
@@ -110,112 +122,84 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
     setPromoError(null);
     setPromoSuccess(null);
 
-    // 1. Check for master promo codes
-    const masterPromoCodes = ["PROMOGOD", "PROMOCODE", "PROMOKOD", "DTM2026", "ELBEK"];
-    if (masterPromoCodes.includes(cleanInput)) {
-      try {
-        const updatedCurrentUser: User = {
-          ...currentUser,
-          premium: true,
-          subscriptionStatus: "Tastiqlandi",
-          subscriptionPlan: "yillik",
-          referredBy: cleanInput,
-          trialDaysAdded: 9999
-        };
-
-        // Update current user in Firestore
-        await setDoc(doc(db, "users", currentUser.uid), {
-          premium: true,
-          subscriptionStatus: "Tastiqlandi",
-          subscriptionPlan: "yillik",
-          referredBy: cleanInput,
-          trialDaysAdded: 9999
-        }, { merge: true });
-
-        setPromoSuccess("Siz maxsus 'PROMOGOD' master kodini faollashtirdingiz! Sizga umrbod PREMIUM imtiyozi taqdim etildi! 🎁🎉");
-        setPromoInput("");
-        
-        if (onUserUpdate) {
-          onUserUpdate(updatedCurrentUser);
-        }
-      } catch (err) {
-        console.error("Master promo activation failed:", err);
-        setPromoError("Tizimda xatolik yuz berdi.");
-      } finally {
-        setPromoLoading(false);
-      }
-      return;
-    }
-
     try {
-      // 1. Find referrer with this promo code
-      const q = query(collection(db, "users"), where("promoCode", "==", cleanInput));
-      const querySnap = await getDocs(q);
-      
-      if (querySnap.empty) {
-        setPromoError("Noto'g'ri yoki eskirgan promo kod!");
-        setPromoLoading(false);
-        return;
-      }
+      const res = await redeemPromoCode(cleanInput, currentUser);
+      if (res.success) {
+        setPromoSuccess(res.message);
+        setPromoInput("");
+        if (res.updatedUser && onUserUpdate) {
+          onUserUpdate(res.updatedUser);
+        }
 
-      let referrerDoc: any = null;
-      querySnap.forEach((doc) => {
-        referrerDoc = { id: doc.id, ...doc.data() as User };
-      });
-
-      if (!referrerDoc) {
-        setPromoError("Xatolik yuz berdi. Qayta urinib ko'ring.");
-        setPromoLoading(false);
-        return;
-      }
-
-      if (referrerDoc.uid === currentUser.uid) {
-        setPromoError("O'zingizning promo kodingizni ishlata olmaysiz!");
-        setPromoLoading(false);
-        return;
-      }
-
-      // 2. Perform updates
-      const updatedTrialDays = (currentUser.trialDaysAdded || 0) + 1;
-      const updatedCurrentUser: User = {
-        ...currentUser,
-        trialDaysAdded: updatedTrialDays,
-        referredBy: cleanInput
-      };
-
-      // Update current user in Firestore
-      await setDoc(doc(db, "users", currentUser.uid), {
-        trialDaysAdded: updatedTrialDays,
-        referredBy: cleanInput
-      }, { merge: true });
-
-      // Update referrer user in Firestore
-      const referrerUpdatedTrialDays = (referrerDoc.trialDaysAdded || 0) + 2;
-      await setDoc(doc(db, "users", referrerDoc.uid), {
-        trialDaysAdded: referrerUpdatedTrialDays
-      }, { merge: true });
-
-      // Send a notification to referrer
-      const referrerNotifId = `notif_${referrerDoc.uid}_${Date.now()}`;
-      await setDoc(doc(db, "notifications", referrerNotifId), {
-        id: referrerNotifId,
-        userId: referrerDoc.uid,
-        title: "Do'st taklifi uchun bonus! 🎁",
-        message: `Sizning promo kodingizni ${currentUser.nickname} faollashtirdi. Sizga qo'shimcha 2 kunlik bepul sinov muddati qo'shildi!`,
-        createdAt: new Date().toISOString()
-      });
-
-      setPromoSuccess("Promo kod muvaffaqiyatli faollashtirildi! Sizga +1 kun bepul sinov qo'shildi.");
-      setPromoInput("");
-      
-      if (onUserUpdate) {
-        onUserUpdate(updatedCurrentUser);
+        // Trigger celebration modal
+        setPromoRewardTitle("TABRIKLAYMIZ! 🎉");
+        setPromoRewardMessage(res.message);
+        setPromoModalOpen(true);
+      } else {
+        setPromoError(res.message);
       }
     } catch (err) {
-      console.error("Promo activation failed:", err);
-      setPromoError("Tizimda xatolik yuz berdi.");
+      console.error("Promo activation error:", err);
+      setPromoError("Tizimda xatolik yuz berdi. Qayta urinib ko'ring.");
     } finally {
       setPromoLoading(false);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      // 1. Delete user doc from Firestore
+      try {
+        await deleteDoc(doc(db, "users", currentUser.uid));
+      } catch (err) {
+        console.warn("Firestore delete user error:", err);
+      }
+
+      // 2. Delete leaderboard entry from Firestore
+      try {
+        await deleteDoc(doc(db, "leaderboard", currentUser.uid));
+      } catch (err) {
+        console.warn("Firestore delete leaderboard error:", err);
+      }
+
+      // 3. Delete from backend server
+      try {
+        await fetch("/api/users/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uid: currentUser.uid })
+        });
+      } catch (err) {
+        console.warn("Backend server delete error:", err);
+      }
+
+      // 4. Delete Firebase Auth user if present
+      try {
+        if (auth.currentUser) {
+          await deleteUser(auth.currentUser);
+        }
+      } catch (authErr) {
+        console.warn("Auth delete user error (signing out instead):", authErr);
+        await signOut(auth);
+      }
+
+      // 5. Clear cached user in localStorage
+      try {
+        localStorage.removeItem("dtm_cached_user");
+      } catch (e) {}
+
+      // 6. Invoke app callback
+      if (onDeleteAccount) {
+        await onDeleteAccount();
+      } else if (onUserUpdate) {
+        onUserUpdate(null as any);
+      }
+    } catch (err) {
+      console.error("Account deletion failed:", err);
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -378,6 +362,24 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
               </div>
             )}
           </div>
+
+          {/* Account Settings & Danger Zone */}
+          <div className="bg-white border border-rose-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center space-x-2 text-rose-600 font-bold text-sm">
+              <Trash2 className="w-4 h-4" />
+              <span>Akkaunt Sozlamalari</span>
+            </div>
+            <p className="text-slate-500 text-xs font-semibold leading-relaxed">
+              Agar akkauntingizni o'chirsangiz, barcha natijalaringiz va ma'lumotlaringiz butunlay o'chib ketadi. Keyinroq qayta ro'yxatdan o'tishingiz mumkin.
+            </p>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="w-full py-3 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>Akkauntni butunlay o'chirish</span>
+            </button>
+          </div>
         </div>
 
         {/* RIGHT COLUMN: Past test history list (8 cols) */}
@@ -458,6 +460,75 @@ export default function Profile({ currentUser, onUserUpdate }: ProfileProps) {
           </div>
         </div>
       </motion.div>
+
+      {/* Delete Account Warning Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 select-none">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-6 relative border border-rose-100"
+          >
+            <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+
+            <div className="text-center space-y-3">
+              <h3 className="text-xl font-black text-slate-900 font-display">
+                Rostan ham akkauntingizni o'chirmoqchimisiz?
+              </h3>
+              
+              <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200/80 p-4 rounded-2xl leading-relaxed text-left space-y-1">
+                <p className="font-bold text-rose-800 flex items-center space-x-1.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>MUHIM OGOHLANTIRISH:</span>
+                </p>
+                <p>
+                  Agar o'z akkauntingizni o'chirsangiz, Premium tarifi olgan bo'lsangiz hammasi, to'plangan ballaringiz va barcha imtihon natijalaringiz <strong>BUTUNLAY KUYIB KETADI!</strong>
+                </p>
+              </div>
+
+              <p className="text-slate-500 text-xs font-medium">
+                Akkaunt o'chirilgandan so'ng xohlasangiz qayta ro'yxatdan o'ta olasiz.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <button
+                disabled={deleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-3.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition-all cursor-pointer"
+              >
+                Yo'q, bekor qilish
+              </button>
+              <button
+                disabled={deleting}
+                onClick={handleConfirmDeleteAccount}
+                className="flex-1 py-3.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-xs transition-all shadow-lg shadow-rose-600/30 flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                {deleting ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Ha, akkauntni o'chirish</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Referral / Promo Code Congratulation Modal */}
+      <ReferralRewardModal
+        isOpen={promoModalOpen}
+        onClose={() => setPromoModalOpen(false)}
+        title={promoRewardTitle}
+        message={promoRewardMessage}
+        rewardText="+1 Kunlik Bepul VIP Premium"
+        badgeText="Promo-kod Bonusi"
+      />
     </div>
   );
 }

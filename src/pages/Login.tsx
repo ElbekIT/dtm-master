@@ -8,8 +8,9 @@ import { motion } from "motion/react";
 import { auth, googleProvider, db, handleFirestoreError, OperationType, getDoc, setDoc, getDocs } from "../lib/firebase";
 import { signInWithPopup } from "firebase/auth";
 import { doc, collection, query, where } from "firebase/firestore";
-import { Chrome, ShieldAlert, Award, ArrowRight, CheckCircle2, MapPin, Sparkles } from "lucide-react";
+import { Chrome, ShieldAlert, Award, ArrowRight, CheckCircle2, MapPin, Sparkles, Gift } from "lucide-react";
 import { User } from "../types";
+import { redeemPromoCode } from "../lib/promo";
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -29,6 +30,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   
   const [nickname, setNickname] = useState("");
   const [country, setCountry] = useState("O'zbekiston");
+  const [promoInput, setPromoInput] = useState("");
 
   // Welcome modal/step after nickname selection
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -146,7 +148,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
       const cleanNickname = targetNickname.toUpperCase().replace(/[^A-Z0-9]/g, "");
       const generatedPromo = `${cleanNickname}_${tempAuthData.uid.substring(0, 4).toUpperCase()}`;
 
-      const newUser: User = {
+      let newUser: User = {
         uid: tempAuthData.uid,
         email: tempAuthData.email,
         photoURL: tempAuthData.photoURL,
@@ -162,6 +164,18 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         subscriptionStatus: "none",
         premium: false
       };
+
+      // Redeem promo code if provided
+      if (promoInput.trim()) {
+        const redeemRes = await redeemPromoCode(promoInput, newUser);
+        if (redeemRes.success && redeemRes.updatedUser) {
+          newUser = redeemRes.updatedUser;
+        } else if (!redeemRes.success) {
+          setError(redeemRes.message);
+          setLoading(false);
+          return;
+        }
+      }
 
       setNewUserPending(newUser);
       setShowWelcomeModal(true);
@@ -309,6 +323,29 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                     <option value="Qoraqalpog'iston Res.">Qoraqalpog'iston Res.</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="promoCodeInput" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Promo-kod (Do'stingiz kodi - Ixtiyoriy)
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Gift className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <input
+                    type="text"
+                    id="promoCodeInput"
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                    placeholder="Masalan: TALABA_1234"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all outline-none font-mono tracking-wider font-semibold uppercase text-sm"
+                  />
+                </div>
+                <p className="text-xs text-amber-700 font-semibold mt-1.5 flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Do'stingiz kodi orqali 1 kunlik BEPUL VIP Premiumga ega bo'lasiz!</span>
+                </p>
               </div>
 
               {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg font-medium">{error}</div>}
