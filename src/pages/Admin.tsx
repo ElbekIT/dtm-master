@@ -77,8 +77,9 @@ export default function Admin() {
 
       // 2. Fetch banned users from server
       const bannedRes = await fetch("/api/admin/banned-users");
-      const bannedData = bannedRes.ok ? await bannedRes.json() : { banned: [] };
-      setBannedUids(bannedData.banned);
+      const bannedData = bannedRes.ok ? await bannedRes.json() : {};
+      const bannedList = Array.isArray(bannedData?.banned) ? bannedData.banned : [];
+      setBannedUids(bannedList);
 
       // 3. Fetch users from Firestore and local server database
       let uList: User[] = [];
@@ -134,7 +135,7 @@ export default function Admin() {
         totalTestsStarted: statsData.totalTestsStarted || 0,
         activeSessionsCount: statsData.activeSessionsCount || 0,
         completedSessionsCount: statsData.completedSessionsCount || 0,
-        bannedUsersCount: bannedData.banned.length,
+        bannedUsersCount: bannedList.length,
         questionsDatabaseCount: statsData.questionsDatabaseCount || 17,
         pendingPurchasesCount: pendingCount
       });
