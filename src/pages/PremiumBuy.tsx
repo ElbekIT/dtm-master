@@ -7,14 +7,194 @@ import React, { useState, useRef } from "react";
 import { motion } from "motion/react";
 import { CreditCard, Upload, CheckCircle2, AlertTriangle, Copy, ShieldCheck, Clock, FileText, ChevronRight, Tag, Sparkles } from "lucide-react";
 import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
-import { doc, setDoc, collection, query, where } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, updateDoc, Timestamp } from "firebase/firestore";
 import { User, Purchase } from "../types";
 
 interface PremiumBuyProps {
   currentUser: User;
   onSuccess?: () => void;
   onUserUpdate?: (user: User) => void;
-  isBlocker?: boolean; // if true, acts as a full-page blocker
+  isBlocker?: boolean;
+}
+
+// ⭐ MASTER PROMOKODLAR (Admin uchun cheksiz premium)
+const MASTER_PROMO_CODES = [
+  "PROMOGOD",
+  "PROMOCODE",
+  "PROMOKOD",
+  "DTM2026",
+  "ELBEK"
+];
+
+interface PromoRedeemResult {
+  success: boolean;
+  message: string;
+  updatedUser?: User;
+}
+
+/**
+ * Promo kodini faollashtirish va bonuslar berish
+ */
+async function redeemPromoCode(
+  inputCode: string,
+  currentUser: User
+): Promise<PromoRedeemResult> {
+  try {
+    const cleanCode = inputCode.trim().toUpperCase();
+
+    // ✅ TEKSHIRISH-1: Bo'sh kiritilishi yo'q
+    if (!cleanCode) {
+      return {
+        success: false,
+        message: "Promo kod bo'sh bo'lishi mumkin emas!"
+      };
+    }
+
+    // ✅ TEKSHIRISH-2: O'z kodidon'z
+    if (cleanCode === (currentUser.promoCode || "").trim().toUpperCase()) {
+      return {
+        success: false,
+        message: "O'zingizning promo kodingizni ishlata olmaysiz!"
+      };
+    }
+
+    // ✅ TEKSHIRISH-3: Allaqachon foydalanmodi?
+    if (currentUser.referredBy || currentUser.usedPromoCode) {
+      return {
+        success: false,
+        message: "Siz allaqachon promo kod faollashtirgansiz!"
+      };
+    }
+
+    // 🔑 MASTER PROMO KODLARI TEKSHIR
+    if (MASTER_PROMO_CODES.includes(cleanCode)) {
+      try {
+        const now = new Date();
+        const futureDate = new Date(now.getTime() + 999 * 365 * 24 * 60 * 60 * 1000);
+
+        await updateDoc(doc(db, "users", currentUser.uid), {
+          premium: true,
+          subscriptionStatus: "Tastiqlandi",
+          subscriptionPlan: "yillik",
+          referredBy: cleanCode,
+          premiumUntil: Timestamp.fromDate(futureDate),
+          trialDaysAdded: 9999
+        });
+
+        const successMessage = `🎉 TABRIKLAYMIZ!\n\n✅ Master promokod faollashtirildi!\n🎁 Sizga UMRBOD PREMIUM imtiyozi taqdim etildi!`;
+
+        return {
+          success: true,
+          message: successMessage,
+          updatedUser: {
+            ...currentUser,
+            premium: true,
+            subscriptionStatus: "Tastiqlandi",
+            subscriptionPlan: "yillik",
+            referredBy: cleanCode,
+            premiumUntil: futureDate,
+            trialDaysAdded: 9999
+          }
+        };
+      } catch (err) {
+        console.error("❌ Master promo activation error:", err);
+        return {
+          success: false,
+          message: "Master promokod faollashtirish xatosi. Qayta urinib ko'ring."
+        };
+      }
+    }
+
+    // 🔍 DATABASE SORGUSU: Do'stning kodiligini tekshir
+    const referrerQuery = query(
+      collection(db, "users"),
+      where("promoCode", "==", cleanCode)
+    );
+
+    const referrerSnapshot = await getDocs(referrerQuery);
+
+    // ✅ TEKSHIRISH-4: Kod topilmadi
+    if (referrerSnapshot.empty) {
+      return {
+        success: false,
+        message: "Bu promo kod topilmadi! Iltimos, to'g'ri kod kiritingiz."
+      };
+    }
+
+    const referrerDoc = referrerSnapshot.docs[0];
+    const referrerUser = referrerDoc.data() as User;
+
+    // ✅ TEKSHIRISH-5: O'zi o'ziga referral bo'lmasin
+    if (referrerUser.uid === currentUser.uid) {
+      return {
+        success: false,
+        message: "O'zingizning kodidon'z ishlata olmaysiz!"
+      };
+    }
+
+    // 📅 BONUS HISOBLAB CHIQISH
+    const bonusDays = 1;
+    const referrerBonus = 2;
+
+    // Hozirgi vaqtdagi premium muddati
+    let currentUserPremiumUntil = new Date();
+    if (currentUser.premiumUntil instanceof Timestamp) {
+      currentUserPremiumUntil = currentUser.premiumUntil.toDate();
+    } else if (currentUser.premiumUntil) {
+      currentUserPremiumUntil = new Date(currentUser.premiumUntil);
+    }
+
+    let referrerPremiumUntil = new Date();
+    if (referrerUser.premiumUntil instanceof Timestamp) {
+      referrerPremiumUntil = referrerUser.premiumUntil.toDate();
+    } else if (referrerUser.premiumUntil) {
+      referrerPremiumUntil = new Date(referrerUser.premiumUntil);
+    }
+
+    // Yangi premium vaqti
+    const newUserPremiumUntil = new Date(
+      currentUserPremiumUntil.getTime() + bonusDays * 24 * 60 * 60 * 1000
+    );
+    const newReferrerPremiumUntil = new Date(
+      referrerPremiumUntil.getTime() + referrerBonus * 24 * 60 * 60 * 1000
+    );
+
+    // 💾 FOYDALANUVCHINI YANGILASH
+    await updateDoc(doc(db, "users", currentUser.uid), {
+      referredBy: referrerUser.uid,
+      usedPromoCode: true,
+      premiumUntil: Timestamp.fromDate(newUserPremiumUntil),
+      premium: true,
+      subscriptionStatus: "Tastiqlandi"
+    });
+
+    // 💾 TAKLIF QILGANNI YANGILASH
+    await updateDoc(doc(db, "users", referrerUser.uid), {
+      premiumUntil: Timestamp.fromDate(newReferrerPremiumUntil)
+    });
+
+    // ✅ MUVAFFAQIYAT
+    const successMessage = `🎉 TABRIKLAYMIZ!\n\n✅ Siz ${referrerUser.nickname} ning taklifini qabul qildingiz!\n➕ +${bonusDays} kunlik bepul Premium oldi!\n\n🎁 Taklif qilgan do'stingiz esa +${referrerBonus} kunlik bonus oldi!`;
+
+    return {
+      success: true,
+      message: successMessage,
+      updatedUser: {
+        ...currentUser,
+        referredBy: referrerUser.uid,
+        usedPromoCode: true,
+        premiumUntil: newUserPremiumUntil,
+        premium: true,
+        subscriptionStatus: "Tastiqlandi"
+      }
+    };
+  } catch (error) {
+    console.error("❌ Promo kodini qayta ishlashda xatoli:", error);
+    return {
+      success: false,
+      message: "Tizimda xatolik yuz berdi. Qayta urinib ko'ring."
+    };
+  }
 }
 
 export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlocker = false }: PremiumBuyProps) {
@@ -27,12 +207,10 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Promo code states inside PremiumBuy
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
-
   const [copied, setCopied] = useState(false);
 
   const plans: Record<'haftalik' | 'oylik' | 'yillik', { name: string; price: number; label: string; popular?: boolean }> = {
@@ -84,7 +262,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     }
   };
 
-  // Convert & Compress File to Lightweight Base64 JPEG
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -142,7 +319,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       const planDetails = plans[selectedPlan];
       const nowString = new Date().toISOString();
 
-      // Create purchase document in Firestore
       const purchaseDocRef = doc(db, "purchases", currentUser.uid);
       const purchaseData: Purchase = {
         id: currentUser.uid,
@@ -159,14 +335,12 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
 
       await setDoc(purchaseDocRef, purchaseData);
 
-      // Update user subscription state in Firestore & Realtime Database
       const userDocRef = doc(db, "users", currentUser.uid);
       await setDoc(userDocRef, {
         subscriptionStatus: "Tekshirilyapti",
         subscriptionPlan: selectedPlan
       }, { merge: true });
 
-      // Notify parent app if callback available
       const updatedUser: User = {
         ...currentUser,
         subscriptionStatus: "Tekshirilyapti",
@@ -177,7 +351,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       setSuccess(true);
       if (onSuccess) onSuccess();
     } catch (err: any) {
-      console.error("Purchase submit failed:", err);
+      console.error("❌ Purchase submit failed:", err);
       setError("To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     } finally {
       setSubmitting(false);
@@ -197,13 +371,14 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       setSuccess(false);
       setError(null);
     } catch (err) {
-      console.error("Failed to reset subscriptionStatus:", err);
+      console.error("❌ Failed to reset subscriptionStatus:", err);
     }
   };
 
   const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanInput = promoInput.trim().toUpperCase();
+    
     if (!cleanInput) {
       setPromoError("Iltimos, promokodni kiriting.");
       return;
@@ -213,83 +388,22 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     setPromoError(null);
     setPromoSuccess(null);
 
-    // Master promo codes
-    const masterPromoCodes = ["PROMOGOD", "PROMOCODE", "PROMOKOD", "DTM2026", "ELBEK"];
-    if (masterPromoCodes.includes(cleanInput)) {
-      try {
-        const updatedCurrentUser: User = {
-          ...currentUser,
-          premium: true,
-          subscriptionStatus: "Tastiqlandi",
-          subscriptionPlan: "yillik",
-          referredBy: cleanInput,
-          trialDaysAdded: 9999
-        };
-
-        await setDoc(doc(db, "users", currentUser.uid), {
-          premium: true,
-          subscriptionStatus: "Tastiqlandi",
-          subscriptionPlan: "yillik",
-          referredBy: cleanInput,
-          trialDaysAdded: 9999
-        }, { merge: true });
-
-        setPromoSuccess("Promokod faollashtirildi! Sizga umrbod PREMIUM imtiyozi taqdim etildi! 🎁🎉");
-        setPromoInput("");
-        if (onUserUpdate) onUserUpdate(updatedCurrentUser);
-      } catch (err) {
-        console.error("Master promo activation error:", err);
-        setPromoError("Tizimda xatolik yuz berdi.");
-      } finally {
-        setPromoLoading(false);
-      }
-      return;
-    }
-
     try {
-      const q = query(collection(db, "users"), where("promoCode", "==", cleanInput));
-      const querySnapshot = await getDocs(q);
+      const res = await redeemPromoCode(cleanInput, currentUser);
       
-      if (querySnapshot.empty) {
-        setPromoError("Bunday promokod mavjud emas.");
-        setPromoLoading(false);
-        return;
+      if (res.success) {
+        setPromoSuccess(res.message);
+        setPromoInput("");
+        
+        if (res.updatedUser && onUserUpdate) {
+          onUserUpdate(res.updatedUser);
+        }
+      } else {
+        setPromoError(res.message);
       }
-
-      let referrerUser: User | null = null;
-      querySnapshot.forEach((docSnap) => {
-        referrerUser = docSnap.data() as User;
-      });
-
-      if (!referrerUser || (referrerUser as User).uid === currentUser.uid) {
-        setPromoError("O'zingizning promokodingizni ishlatishingiz mumkin emas.");
-        setPromoLoading(false);
-        return;
-      }
-
-      const updatedCurrentUser: User = {
-        ...currentUser,
-        premium: true,
-        subscriptionStatus: "Tastiqlandi",
-        subscriptionPlan: "oylik",
-        referredBy: cleanInput,
-        trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30
-      };
-
-      await setDoc(doc(db, "users", currentUser.uid), {
-        premium: true,
-        subscriptionStatus: "Tastiqlandi",
-        subscriptionPlan: "oylik",
-        referredBy: cleanInput,
-        trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30
-      }, { merge: true });
-
-      setPromoSuccess(`Tabriklaymiz! Promokod muvaffaqiyatli ishlatildi. Premium taqdim etildi! 🎉`);
-      setPromoInput("");
-      if (onUserUpdate) onUserUpdate(updatedCurrentUser);
     } catch (err) {
-      console.error("Promo activation failed:", err);
-      setPromoError("Promokodni tekshirishda xatolik yuz berdi.");
+      console.error("❌ Promo activation error:", err);
+      setPromoError("Tizimda xatolik yuz berdi. Qayta urinib ko'ring.");
     } finally {
       setPromoLoading(false);
     }
@@ -549,7 +663,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
             </button>
           </div>
 
-          {/* Promokod Instant Activation Card */}
+          {/* ✅ PROMOKOD INSTANT ACTIVATION CARD */}
           <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-orange-50 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4 mt-6 relative overflow-hidden">
             <div className="flex items-center space-x-2">
               <div className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
@@ -584,7 +698,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
                 <p className="text-[11px] font-bold text-red-500 bg-red-50 p-2.5 rounded-lg border border-red-100">{promoError}</p>
               )}
               {promoSuccess && (
-                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100">{promoSuccess}</p>
+                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100 whitespace-pre-line leading-relaxed">{promoSuccess}</p>
               )}
             </form>
           </div>
