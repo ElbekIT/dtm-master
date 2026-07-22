@@ -1,6 +1,6 @@
 {
   "name": "DTM MASTER",
-  "description": "O'zbekiston abituriyentlari va Perevod imtihonlariga professional tayyorgarlik platformasi",
+  "description": "O'zbekiston OTMlariga kirish va o'qishni ko'chirish (perevod) imtihonlariga professional tayyorgarlik ko'rish platformasi.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

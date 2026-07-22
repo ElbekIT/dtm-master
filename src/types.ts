@@ -1,131 +1,110 @@
-export type UserRole = 'user' | 'admin';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-export interface UserProfile {
+export interface User {
   uid: string;
-  email: string;
-  photoURL: string;
+  email: string | null;
+  photoURL: string | null;
   nickname: string;
-  createdAt: number;
-  lastLogin: number;
+  createdAt: string;
+  lastLogin: string;
   score: number;
   testsSolved: number;
   country: string;
-  role: UserRole;
-  referralCode: string;
-  usedReferralCode?: string | null;
-  trialDays: number;
-  trialStartedAt: number;
-  isPremium: boolean;
-  premiumUntil?: number | null;
-  helpsUsedCount: number;
-  isBanned?: boolean;
-  banReason?: string | null;
-  banUntil?: number | null;
-  welcomed?: boolean;
-}
-
-export type SubjectType = 
-  | 'mathematics' 
-  | 'physics' 
-  | 'native_language' 
-  | 'history' 
-  | 'mandatory_math' 
-  | 'professional';
-
-export interface Question {
-  id: string;
-  question: string;
-  options: [string, string, string, string]; // [A, B, C, D]
-  correctAnswer: string; // The text or index of correct answer
-  subject: SubjectType | string;
-  directionId?: string; // Optional specific direction
-  difficulty: 'easy' | 'medium' | 'hard';
-  explanation?: string;
-  image?: string;
-}
-
-export interface ExamQuestion extends Question {
-  shuffledOptions: string[];
-  userAnswer?: string;
-  eliminatedOptions?: string[]; // Options eliminated by lifeline/yordam
+  role: 'user' | 'admin';
+  hintsUsed?: number;
+  trialDaysAdded?: number;
+  usedPromoCode?: string;
+  promoCode?: string;
+  subscriptionStatus?: 'none' | 'Tekshirilyapti' | 'Tastiqlandi' | 'Tekshirilmadi';
+  subscriptionPlan?: 'haftalik' | 'oylik' | 'yillik';
+  premium?: boolean;
+  premiumUntil?: string;
+  bannedUntil?: string | null;
+  referredBy?: string;
 }
 
 export interface Direction {
   id: string;
-  title: string;
+  name: string;
   description: string;
-  iconName: string;
-  professionalSubjects: string[];
-  totalQuestions: number;
+  subjects: string[]; // Subject names included in this direction
 }
 
-export interface ExamSession {
-  sessionId: string;
-  userId: string;
-  directionId: string;
-  directionTitle: string;
-  questions: ExamQuestion[];
-  answers: Record<number, string>; // questionIndex -> selectedOption
-  currentIndex: number;
-  startTime: number;
-  timeRemainingSeconds: number; // 4 hours = 14400s
-  helpsRemaining: number; // 3 lifelines per test
-  helpsUsedInSession: number;
-  isCompleted: boolean;
-  completedAt?: number;
-}
-
-export interface TestResult {
+export interface Question {
   id: string;
-  userId: string;
-  userNickname: string;
-  userPhoto?: string;
+  question: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
+  correctAnswer?: string; // Stored securely, only accessible on backend/admin
+  subject: string;
+  direction?: string; // Optional, some questions are direction-specific
+  difficulty: 'easy' | 'medium' | 'hard';
+  image?: string;
+}
+
+export interface TestSession {
+  id: string;
+  uid: string;
   directionId: string;
-  directionTitle: string;
-  totalQuestions: number;
-  correctAnswers: number;
-  wrongAnswers: number;
-  emptyAnswers: number;
-  timeUsedSeconds: number;
-  totalScore: number; // Calculated score
-  percentage: number;
-  passed: boolean;
-  helpsUsed: number;
-  createdAt: number;
-  subjectBreakdown: Record<string, { total: number; correct: number; score: number }>;
+  directionName: string;
+  startTime: number;
+  durationSeconds: number; // e.g., 3 hours = 10800 seconds
+  questions: Question[]; // Note: correctAnswer will be stripped for normal users
+  answers: Record<string, string>; // questionId -> chosenOption ('A', 'B', 'C', 'D')
+  completed: boolean;
+  score?: number;
+  correctCount?: number;
+  wrongCount?: number;
+  emptyCount?: number;
+  timeUsed?: string;
+  hintsUsed?: number;
+  createdAt: string;
 }
 
 export interface LeaderboardEntry {
-  id: string;
-  userId: string;
+  uid: string;
+  rank?: number;
   nickname: string;
-  photoURL?: string;
-  directionTitle: string;
+  direction: string;
   score: number;
-  correctAnswers: number;
-  timeUsedSeconds: number;
-  helpsUsed: number;
-  updatedAt: number;
+  correctCount: number;
+  timeUsed: string;
+  hintsUsed?: number;
+  updatedAt: string;
 }
 
-export interface PaymentPurchase {
+export interface DtmSubject {
   id: string;
-  userId: string;
-  userNickname: string;
-  userEmail: string;
-  planType: 'weekly' | 'monthly' | 'yearly';
-  planTitle: string;
-  amountUZS: number;
-  receiptUrl: string; // Base64 or Firebase Storage URL
-  status: 'pending' | 'approved' | 'rejected'; // Tekshirilmoqda | Tasdiqlandi | Rad etildi
-  createdAt: number;
-  reviewedAt?: number;
+  name: string;
+  questionsCount: number;
+  pointsPerQuestion: number;
 }
 
-export interface AdminNotification {
+export interface Notification {
   id: string;
+  userId: string; // 'all' or user's uid
   title: string;
-  content: string;
-  createdAt: number;
-  author: string;
+  message: string;
+  createdAt: string;
 }
+
+export interface Purchase {
+  id: string; // usually user's uid
+  uid: string;
+  nickname: string;
+  email: string | null;
+  plan: 'haftalik' | 'oylik' | 'yillik';
+  price: number;
+  receiptImage: string; // Base64 representation
+  status: 'Tekshirilyapti' | 'Tastiqlandi' | 'Tekshirilmadi';
+  createdAt: string;
+  updatedAt: string;
+}
+

@@ -1,311 +1,174 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { 
-  Award, 
-  Crown, 
-  User, 
-  Bell, 
-  Gift, 
-  LogOut, 
-  ShieldCheck, 
-  Menu, 
-  X, 
-  Home, 
-  Info, 
-  Sparkles,
-  Moon,
-  Sun
-} from 'lucide-react';
-import { PromocodeModal } from './PromocodeModal';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from "react";
+import { LogOut, Menu, X, Award, ShieldAlert, User as UserIcon, HelpCircle, Trophy, Home, Bell, Crown } from "lucide-react";
+import { User } from "../types";
 
 interface HeaderProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  currentUser: User | null;
+  currentTab: string;
+  setCurrentTab: (tab: string) => void;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
-  const { userProfile, logout, isPremiumActive, isTrialActive, loginWithGoogle } = useAuth();
-  const { darkMode, toggleDarkMode } = useTheme();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [promoModalOpen, setPromoModalOpen] = useState(false);
+export default function Header({ currentUser, currentTab, setCurrentTab, onLogout }: HeaderProps) {
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleNav = (tab: string) => {
-    setActiveTab(tab);
-    setMobileMenuOpen(false);
-  };
+  const navItems = currentUser?.role === "admin"
+    ? [
+        { id: "admin", label: "Admin Panel", icon: ShieldAlert },
+        { id: "profile", label: "Profil", icon: UserIcon },
+        { id: "about", label: "Loyiha haqida", icon: HelpCircle },
+      ]
+    : [
+        { id: "home", label: "Bosh sahifa", icon: Home },
+        { id: "ranking", label: "Reyting", icon: Trophy },
+        { id: "premium", label: "Premium Olish", icon: Crown },
+        { id: "notifications", label: "Habarnomalar", icon: Bell },
+        { id: "profile", label: "Profil", icon: UserIcon },
+        { id: "about", label: "Loyiha haqida", icon: HelpCircle },
+      ];
 
   return (
-    <>
-      <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-xs transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-          
+    <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
           {/* Logo */}
-          <div 
-            onClick={() => handleNav('home')} 
-            className="flex items-center gap-3 cursor-pointer group"
-          >
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Award className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-1">
-                DTM <span className="text-blue-600 dark:text-blue-400">MASTER</span>
-              </span>
-              <span className="hidden sm:block text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wide uppercase">
-                O'zbekiston Imtihon Platformasi
-              </span>
-            </div>
+          <div className="flex items-center">
+            <button
+              onClick={() => setCurrentTab("home")}
+              className="flex items-center space-x-2 text-primary-600 hover:text-primary-700 transition-colors font-display text-xl font-bold tracking-tight cursor-pointer"
+            >
+              <Award className="w-6 h-6 stroke-[2.5]" />
+              <span>DTM MASTER</span>
+            </button>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-2">
-            <button
-              onClick={() => handleNav('home')}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Home className="w-4 h-4" />
-              <span>Asosiy</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('ranking')}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'ranking' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Award className="w-4 h-4" />
-              <span>Reyting</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('notifications')}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 relative cursor-pointer ${
-                activeTab === 'notifications' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Bell className="w-4 h-4" />
-              <span>Habarnoma</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('profile')}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>Profil</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('about')}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'about' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Info className="w-4 h-4" />
-              <span>Biz haqimizda</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('admin')}
-              className={`px-3.5 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'admin' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>Admin Panel</span>
-            </button>
-          </nav>
-
-          {/* Right Action Items */}
-          <div className="flex items-center gap-2.5">
-            {/* Dark Mode Toggle Button */}
-            <button
-              onClick={toggleDarkMode}
-              title={darkMode ? "Kunduzgi rejim (Light mode)" : "Tungi rejim (Dark mode)"}
-              className="p-2 rounded-xl transition cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center"
-            >
-              {darkMode ? (
-                <Sun className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 text-slate-600" />
-              )}
-            </button>
-
-            {userProfile ? (
-              <>
-                {/* Promocode Modal Trigger */}
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center space-x-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = currentTab === item.id;
+              return (
                 <button
-                  onClick={() => setPromoModalOpen(true)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/80 rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  <Gift className="w-4 h-4 text-amber-600" />
-                  <span>Promokod</span>
-                </button>
-
-                {/* Premium / Trial Status Pill */}
-                <button
-                  onClick={() => handleNav('premium')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                    isPremiumActive
-                      ? 'bg-amber-500 text-white border-amber-400 shadow-sm shadow-amber-500/20 hover:bg-amber-600'
-                      : isTrialActive
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                      : 'bg-rose-500 text-white border-rose-400 animate-pulse hover:bg-rose-600'
+                  key={item.id}
+                  onClick={() => setCurrentTab(item.id)}
+                  className={`flex items-center space-x-1 px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                    active
+                      ? "bg-primary-50 text-primary-600"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <Crown className="w-3.5 h-3.5" />
-                  <span>
-                    {isPremiumActive ? 'PREMIUM' : isTrialActive ? 'Sinov' : 'Premium Olish'}
-                  </span>
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
                 </button>
+              );
+            })}
 
-                {/* User Avatar & Nickname */}
-                <div 
-                  onClick={() => handleNav('profile')}
-                  className="flex items-center gap-2 p-1 pl-2 hover:bg-slate-100 rounded-full cursor-pointer transition"
-                >
-                  <span className="hidden lg:block text-xs font-bold text-slate-700 max-w-[100px] truncate">
-                    {userProfile.nickname}
-                  </span>
-                  <img
-                    src={userProfile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.nickname}`}
-                    alt="User photo"
-                    className="w-8 h-8 rounded-full border border-blue-200 object-cover"
-                  />
+            {currentUser && (
+              <div className="flex items-center pl-4 border-l border-slate-200 ml-4 space-x-4">
+                <div className="flex items-center space-x-2">
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={currentUser.nickname}
+                      className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center font-bold text-sm">
+                      {currentUser.nickname.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="text-sm font-semibold text-slate-800">{currentUser.nickname}</span>
                 </div>
-
-                {/* Admin Switch Link */}
                 <button
-                  onClick={() => handleNav('admin')}
-                  title="Admin Panel"
-                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition cursor-pointer"
-                >
-                  <ShieldCheck className="w-5 h-5" />
-                </button>
-
-                {/* Logout */}
-                <button
-                  onClick={logout}
-                  title="Tizimdan chiqish"
-                  className="hidden sm:flex p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                  id="logout-btn"
+                  onClick={onLogout}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                  title="Chiqish"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
-              </>
-            ) : (
-              <button
-                onClick={loginWithGoogle}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md shadow-blue-500/20 flex items-center gap-2 transition cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Google orqali kirish</span>
-              </button>
+              </div>
             )}
+          </nav>
 
-            {/* Mobile Menu Toggle */}
+          {/* Mobile menu button */}
+          <div className="flex items-center md:hidden">
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+              onClick={() => setIsOpen(!isOpen)}
+              className="p-2 rounded-xl text-slate-600 hover:bg-slate-50 focus:outline-none"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-2 pb-6 space-y-2 shadow-xl animate-in slide-in-from-top-2">
-            <button
-              onClick={() => handleNav('home')}
-              className={`w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 ${
-                activeTab === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span>Asosiy</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('ranking')}
-              className={`w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 ${
-                activeTab === 'ranking' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
-              }`}
-            >
-              <Award className="w-5 h-5" />
-              <span>Reyting</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('notifications')}
-              className={`w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 ${
-                activeTab === 'notifications' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
-              }`}
-            >
-              <Bell className="w-5 h-5" />
-              <span>Habarnoma</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('profile')}
-              className={`w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 ${
-                activeTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
-              }`}
-            >
-              <User className="w-5 h-5" />
-              <span>Profil</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('premium')}
-              className={`w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 ${
-                activeTab === 'premium' ? 'bg-amber-50 text-amber-600' : 'text-slate-700'
-              }`}
-            >
-              <Crown className="w-5 h-5 text-amber-500" />
-              <span>Premium Olish</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setPromoModalOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 text-amber-700 bg-amber-50"
-            >
-              <Gift className="w-5 h-5 text-amber-600" />
-              <span>Promokod Olish</span>
-            </button>
-
-            <button
-              onClick={() => handleNav('admin')}
-              className={`w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 ${
-                activeTab === 'admin' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
-              }`}
-            >
-              <ShieldCheck className="w-5 h-5" />
-              <span>Admin Panel</span>
-            </button>
-
-            {userProfile && (
+      {/* Mobile Menu */}
+      {isOpen && (
+        <div className="md:hidden bg-white border-b border-slate-100 px-4 pt-2 pb-4 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = currentTab === item.id;
+            return (
               <button
-                onClick={logout}
-                className="w-full p-3 rounded-xl text-left font-semibold text-sm flex items-center gap-3 text-rose-600 bg-rose-50"
+                key={item.id}
+                onClick={() => {
+                  setCurrentTab(item.id);
+                  setIsOpen(false);
+                }}
+                className={`flex items-center space-x-2 w-full px-4 py-3 rounded-xl text-base font-medium transition-colors ${
+                  active
+                    ? "bg-primary-50 text-primary-600"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+
+          {currentUser && (
+            <div className="pt-4 border-t border-slate-100 mt-4 space-y-3">
+              <div className="flex items-center space-x-3 px-4">
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.nickname}
+                    className="w-10 h-10 rounded-full border border-slate-200"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center font-bold">
+                    {currentUser.nickname.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">{currentUser.nickname}</div>
+                  <div className="text-xs text-slate-500">{currentUser.email}</div>
+                </div>
+              </div>
+              <button
+                id="mobile-logout-btn"
+                onClick={() => {
+                  setIsOpen(false);
+                  onLogout();
+                }}
+                className="flex items-center space-x-2 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl text-base font-medium transition-colors"
               >
                 <LogOut className="w-5 h-5" />
-                <span>Chiqish</span>
+                <span>Tizimdan chiqish</span>
               </button>
-            )}
-          </div>
-        )}
-      </header>
-
-      {/* Promocode Modal */}
-      <PromocodeModal isOpen={promoModalOpen} onClose={() => setPromoModalOpen(false)} />
-    </>
+            </div>
+          )}
+        </div>
+      )}
+    </header>
   );
-};
+}
