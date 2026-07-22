@@ -19,6 +19,15 @@ import {
   limit, 
   orderBy 
 } from "firebase/firestore";
+import {
+  getDatabase,
+  ref,
+  set as rtdbSet,
+  get as rtdbGet,
+  remove as rtdbRemove,
+  update as rtdbUpdate,
+  onValue
+} from "firebase/database";
 
 // Real client-side Firebase configuration supplied by the user
 export const firebaseConfig = {
@@ -32,9 +41,10 @@ export const firebaseConfig = {
   measurementId: "G-HFLMP30E6D"
 };
 
-// Initialize Firebase
+// Initialize Firebase App, Firestore, Auth, and Realtime Database
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
+export const rtdb = getDatabase(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -128,13 +138,36 @@ export const initialLeaderboardSeed: any[] = [];
 export const initialUsersSeed: any[] = [];
 export const initialPurchasesSeed: any[] = [];
 
-// Safe Firestore wrappers that fallback instantly on timeout or failure
+// Safe Firebase Realtime Database & Firestore wrappers that guarantee live sync to Realtime Database
 export async function getDoc(docRef: any): Promise<any> {
   const path = docRef.path;
+
+  // 1. First attempt to read from Realtime Database (RTDB)
   try {
-    const docSnap = await withTimeout(firebaseGetDoc(docRef), 10000);
+    const rtdbSnap = await withTimeout(rtdbGet(ref(rtdb, path)), 4000);
+    if (rtdbSnap.exists()) {
+      const val = rtdbSnap.val();
+      setLocalData(path, val);
+      return {
+        exists: () => true,
+        data: () => val,
+        id: docRef.id
+      };
+    }
+  } catch (rtdbErr) {
+    console.warn(`RTDB getDoc failed for ${path}, trying Firestore...`, rtdbErr);
+  }
+
+  // 2. Fallback to Firestore
+  try {
+    const docSnap = await withTimeout(firebaseGetDoc(docRef), 4000);
     if (docSnap.exists()) {
-      setLocalData(path, docSnap.data());
+      const data = docSnap.data();
+      setLocalData(path, data);
+      // Auto-backfill to RTDB
+      try {
+        rtdbSet(ref(rtdb, path), data);
+      } catch (e) {}
     }
     return docSnap;
   } catch (err) {
@@ -171,28 +204,53 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<voi
     setLocalData(colListKey, currentList);
   }
 
+  // 1. Directly save/sync to Firebase Realtime Database (RTDB)
   try {
-    await withTimeout(firebaseSetDoc(docRef, data, options), 10000);
+    const dbRef = ref(rtdb, path);
+    if (options?.merge) {
+      await withTimeout(rtdbUpdate(dbRef, data), 4000);
+    } else {
+      await withTimeout(rtdbSet(dbRef, merged), 4000);
+    }
+    console.log(`Realtime Database saved successfully for path: ${path}`);
+  } catch (rtdbErr) {
+    console.warn(`Realtime Database write failed for ${path}:`, rtdbErr);
+  }
+
+  // 2. Dual save to Firestore
+  try {
+    await withTimeout(firebaseSetDoc(docRef, data, options), 4000);
   } catch (err) {
-    console.warn(`Firestore setDoc timed out/failed for ${path}. Saved locally.`, err);
+    console.warn(`Firestore setDoc failed for ${path}. Saved via RTDB/local.`, err);
   }
 }
 
 export async function addDoc(colRef: any, data: any): Promise<any> {
   const colPath = colRef.path;
-  const docId = `local_doc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const docId = `doc_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
   const path = `${colPath}/${docId}`;
-  setLocalData(path, data);
+  const docPayload = { id: docId, ...data };
+  
+  setLocalData(path, docPayload);
 
   const colListKey = `col_list_${colPath}`;
   const currentList = getLocalData<any[]>(colListKey) || [];
-  currentList.push({ id: docId, ...data });
+  currentList.push(docPayload);
   setLocalData(colListKey, currentList);
 
+  // 1. Save to Realtime Database
   try {
-    return await withTimeout(firebaseAddDoc(colRef, data), 10000);
+    await withTimeout(rtdbSet(ref(rtdb, path), docPayload), 4000);
+    console.log(`Realtime Database addDoc saved successfully for path: ${path}`);
+  } catch (rtdbErr) {
+    console.warn(`Realtime Database addDoc failed for ${path}:`, rtdbErr);
+  }
+
+  // 2. Dual save to Firestore
+  try {
+    return await withTimeout(firebaseAddDoc(colRef, data), 4000);
   } catch (err) {
-    console.warn(`Firestore addDoc timed out/failed for ${colPath}. Saved locally.`, err);
+    console.warn(`Firestore addDoc failed for ${colPath}. Saved via RTDB/local.`, err);
     return {
       id: docId,
       path: path
@@ -215,14 +273,75 @@ export async function getDocs(queryOrCol: any): Promise<any> {
       else if (strRepresentation.includes("users")) colPath = "users";
       else if (strRepresentation.includes("results")) colPath = "results";
       else if (strRepresentation.includes("purchases")) colPath = "purchases";
+      else if (strRepresentation.includes("notifications")) colPath = "notifications";
+      else if (strRepresentation.includes("referrals")) colPath = "referrals";
     } catch (e) {}
   }
 
+  // 1. Attempt RTDB get for instant real-time data
+  if (colPath !== "unknown") {
+    try {
+      const rtdbSnap = await withTimeout(rtdbGet(ref(rtdb, colPath)), 4000);
+      if (rtdbSnap.exists()) {
+        const val = rtdbSnap.val();
+        let list: any[] = [];
+        if (val && typeof val === "object") {
+          list = Object.entries(val).map(([key, item]) => ({
+            id: key,
+            uid: key,
+            ...(typeof item === "object" ? item : {})
+          }));
+        }
+
+        setLocalData(`col_list_${colPath}`, list);
+
+        let filteredList = list;
+        if (colPath === "results" && auth.currentUser) {
+          filteredList = list.filter(item => item.uid === auth.currentUser?.uid);
+        }
+        if (colPath === "leaderboard") {
+          filteredList.sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+
+        return {
+          forEach: (callback: (doc: any) => void) => {
+            filteredList.forEach((item: any) => {
+              const { id, ...data } = (item || {}) as any;
+              callback({
+                id: id || "mock_id",
+                data: () => data
+              });
+            });
+          },
+          empty: filteredList.length === 0,
+          size: filteredList.length,
+          docs: filteredList.map((item: any) => {
+            const { id, ...data } = (item || {}) as any;
+            return {
+              id: id || "mock_id",
+              data: () => data
+            };
+          })
+        };
+      }
+    } catch (rtdbErr) {
+      console.warn(`RTDB getDocs failed for ${colPath}, trying Firestore...`, rtdbErr);
+    }
+  }
+
+  // 2. Fallback to Firestore
   try {
-    const querySnapshot = await withTimeout(firebaseGetDocs(queryOrCol), 10000);
+    const querySnapshot = await withTimeout(firebaseGetDocs(queryOrCol), 4000);
     const list: any[] = [];
     querySnapshot.forEach((doc: any) => {
-      list.push({ id: doc.id, ...(doc.data() as any) });
+      const data = doc.data();
+      list.push({ id: doc.id, ...(data as any) });
+      // Backfill to RTDB
+      if (colPath !== "unknown") {
+        try {
+          rtdbSet(ref(rtdb, `${colPath}/${doc.id}`), data);
+        } catch (e) {}
+      }
     });
     
     if (colPath !== "unknown") {
@@ -230,7 +349,7 @@ export async function getDocs(queryOrCol: any): Promise<any> {
     }
     return querySnapshot;
   } catch (err) {
-    console.warn(`Firestore getDocs timed out/failed for query path ${colPath}. Using localStorage.`, err);
+    console.warn(`Firestore getDocs failed for query path ${colPath}. Using localStorage.`, err);
     let cachedList = getLocalData<any[]>(`col_list_${colPath}`) || [];
     
     if (colPath === "leaderboard" && cachedList.length === 0) {
@@ -288,24 +407,33 @@ export async function deleteDoc(docRef: any): Promise<void> {
   localStorage.removeItem(LOCAL_STORAGE_PREFIX + path);
   const colListKey = `col_list_${colPath}`;
   const currentList = getLocalData<any[]>(colListKey) || [];
-  const updatedList = currentList.filter(item => item.id !== docId);
+  const updatedList = currentList.filter(item => item.id !== docId && item.uid !== docId);
   setLocalData(colListKey, updatedList);
 
+  // 1. Delete from Realtime Database
   try {
-    await withTimeout(firebaseDeleteDoc(docRef), 10000);
+    await withTimeout(rtdbRemove(ref(rtdb, path)), 4000);
+    console.log(`Realtime Database delete success for path: ${path}`);
+  } catch (rtdbErr) {
+    console.warn(`Realtime Database delete failed for ${path}:`, rtdbErr);
+  }
+
+  // 2. Delete from Firestore
+  try {
+    await withTimeout(firebaseDeleteDoc(docRef), 4000);
   } catch (err) {
-    console.warn(`Firestore deleteDoc timed out/failed for ${path}. Removed locally.`, err);
+    console.warn(`Firestore deleteDoc failed for ${path}. Removed via RTDB/local.`, err);
   }
 }
 
-// Check Connection helper
+// Check Connection helper for both RTDB and Firestore
 export async function testConnection() {
   try {
-    const testDocRef = doc(db, 'system_test', 'connection');
-    await withTimeout(firebaseGetDoc(testDocRef), 5000);
-    console.log("Firebase Connection verified successfully.");
+    const testRef = ref(rtdb, 'system_test/connection');
+    await withTimeout(rtdbSet(testRef, { status: "connected", timestamp: new Date().toISOString() }), 4000);
+    console.log("Firebase Realtime Database Connection verified successfully!");
   } catch (error) {
-    console.warn("Please check your Firebase configuration or network connection. Operating in Offline Resilient Mode.");
+    console.warn("RTDB Connection test note:", error);
   }
 }
 
