@@ -14,7 +14,7 @@ import { db, auth, handleFirestoreError, OperationType, getDocs } from "../lib/f
 import { collection, query, where, orderBy, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { deleteUser, signOut } from "firebase/auth";
 import { User } from "../types";
-import { getAccessRemainingText, hasActiveAccess } from "../lib/premium";
+import { getAccessRemainingText, hasActiveAccess, getAccessTimeBreakdown } from "../lib/premium";
 import { redeemPromoCode } from "../lib/promo";
 import ReferralRewardModal from "../components/ReferralRewardModal";
 
@@ -48,6 +48,16 @@ export default function Profile({ currentUser, onUserUpdate, onDeleteAccount }: 
   const [promoRewardMessage, setPromoRewardMessage] = useState("");
   const [promoRewardTitle, setPromoRewardTitle] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // 1-second tick interval for live countdown
+  const [, setNowTick] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const fetchExamHistory = async () => {
@@ -204,6 +214,7 @@ export default function Profile({ currentUser, onUserUpdate, onDeleteAccount }: 
   };
 
   const remainingAccessText = getAccessRemainingText(currentUser);
+  const breakdown = getAccessTimeBreakdown(currentUser);
   const isPremiumUser = currentUser.premium || currentUser.subscriptionStatus === "Tastiqlandi";
 
   return (
@@ -250,10 +261,51 @@ export default function Profile({ currentUser, onUserUpdate, onDeleteAccount }: 
               )}
             </p>
 
-            {/* Quick Expiry / Trial text */}
-            <div className="mt-4 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 text-[11px] font-bold inline-flex items-center space-x-1.5">
-              <Hourglass className="w-3.5 h-3.5 text-slate-400" />
-              <span>{remainingAccessText}</span>
+            {/* COUNTDOWN TIMER WIDGET */}
+            <div className="mt-5 p-4 bg-slate-900 text-white rounded-2xl shadow-inner border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-bold">
+                <span className="flex items-center space-x-1.5 text-amber-400">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{breakdown.planTitle}</span>
+                </span>
+                <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-md text-slate-300 font-mono">
+                  {breakdown.type === 'admin' ? 'Cheksiz' : breakdown.type === 'expired' ? 'Tugagan' : 'Teskari sanoq'}
+                </span>
+              </div>
+
+              {/* 4 Block Countdown */}
+              {breakdown.type !== 'admin' && breakdown.type !== 'expired' ? (
+                <div className="grid grid-cols-4 gap-1.5 text-center">
+                  <div className="bg-slate-800/90 rounded-xl p-2 border border-slate-700/50">
+                    <div className="text-lg font-black text-amber-400 font-mono leading-none">{breakdown.days}</div>
+                    <div className="text-[9px] text-slate-400 font-bold mt-1">KUN</div>
+                  </div>
+                  <div className="bg-slate-800/90 rounded-xl p-2 border border-slate-700/50">
+                    <div className="text-lg font-black text-amber-400 font-mono leading-none">{breakdown.hours.toString().padStart(2, '0')}</div>
+                    <div className="text-[9px] text-slate-400 font-bold mt-1">SOAT</div>
+                  </div>
+                  <div className="bg-slate-800/90 rounded-xl p-2 border border-slate-700/50">
+                    <div className="text-lg font-black text-amber-400 font-mono leading-none">{breakdown.minutes.toString().padStart(2, '0')}</div>
+                    <div className="text-[9px] text-slate-400 font-bold mt-1">DAQ</div>
+                  </div>
+                  <div className="bg-slate-800/90 rounded-xl p-2 border border-slate-700/50">
+                    <div className="text-lg font-black text-amber-400 font-mono leading-none">{breakdown.seconds.toString().padStart(2, '0')}</div>
+                    <div className="text-[9px] text-slate-400 font-bold mt-1">SON</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-2 text-center text-sm font-black text-amber-400 font-mono">
+                  {breakdown.formattedCountdown}
+                </div>
+              )}
+
+              {/* WARNING ALERT BANNER */}
+              {breakdown.isWarning && breakdown.type !== 'expired' && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-300 text-[11px] font-bold text-left flex items-start space-x-2 animate-pulse">
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="leading-snug">{breakdown.warningMessage}</p>
+                </div>
+              )}
             </div>
 
             {/* Profile Info fields */}

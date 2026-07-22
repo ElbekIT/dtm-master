@@ -12,9 +12,10 @@ interface HeaderProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   onLogout: () => void;
+  unreadNotifCount?: number;
 }
 
-export default function Header({ currentUser, currentTab, setCurrentTab, onLogout }: HeaderProps) {
+export default function Header({ currentUser, currentTab, setCurrentTab, onLogout, unreadNotifCount = 0 }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const navItems = currentUser?.role === "admin"
@@ -52,18 +53,31 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = currentTab === item.id;
+              const isNotif = item.id === "notifications";
+              const showBadge = isNotif && unreadNotifCount > 0;
+
               return (
                 <button
                   key={item.id}
                   onClick={() => setCurrentTab(item.id)}
-                  className={`flex items-center space-x-1 px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                  className={`flex items-center space-x-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer relative ${
                     active
                       ? "bg-primary-50 text-primary-600"
                       : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <div className="relative">
+                    <Icon className="w-4 h-4" />
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                    )}
+                  </div>
                   <span>{item.label}</span>
+                  {showBadge && (
+                    <span className="ml-1 px-1.5 py-0.2 text-[10px] font-black bg-red-500 text-white rounded-full leading-tight shadow-xs">
+                      {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -115,6 +129,9 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = currentTab === item.id;
+            const isNotif = item.id === "notifications";
+            const showBadge = isNotif && unreadNotifCount > 0;
+
             return (
               <button
                 key={item.id}
@@ -129,7 +146,12 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
                 }`}
               >
                 <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
+                <span className="flex-grow text-left">{item.label}</span>
+                {showBadge && (
+                  <span className="px-2 py-0.5 text-xs font-black bg-red-500 text-white rounded-full">
+                    {unreadNotifCount}
+                  </span>
+                )}
               </button>
             );
           })}

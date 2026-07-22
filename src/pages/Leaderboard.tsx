@@ -6,8 +6,9 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Trophy, Medal, Star, Clock, Calendar, Search } from "lucide-react";
-import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
+import { db, rtdb, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
+import { ref, onValue } from "firebase/database";
 import { LeaderboardEntry } from "../types";
 
 export default function Leaderboard() {
@@ -16,6 +17,9 @@ export default function Leaderboard() {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
+    let unsubUsers: (() => void) | null = null;
+    let unsubLeaderboard: (() => void) | null = null;
+
     const fetchLeaderboard = async () => {
       setLoading(true);
       try {
@@ -105,6 +109,47 @@ export default function Leaderboard() {
     };
 
     fetchLeaderboard();
+
+    // Subscribe to Realtime Database live updates for users
+    try {
+      const usersRef = ref(rtdb, "users");
+      unsubUsers = onValue(usersRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const usersVal = snapshot.val();
+          setEntries((prevEntries) => {
+            const map: Record<string, LeaderboardEntry> = {};
+            prevEntries.forEach(e => { map[e.uid] = e; });
+
+            Object.entries(usersVal).forEach(([key, userItem]: [string, any]) => {
+              if (userItem && (userItem.score > 0 || userItem.uid)) {
+                const existing = map[key] || map[userItem.uid];
+                const score = Math.max(userItem.score || 0, existing?.score || 0);
+                if (score > 0) {
+                  map[userItem.uid || key] = {
+                    uid: userItem.uid || key,
+                    nickname: userItem.nickname || existing?.nickname || "Abituriyent",
+                    direction: userItem.selectedDirection || existing?.direction || "O'quvchi",
+                    score: score,
+                    correctCount: existing?.correctCount || Math.round((score / 189) * 90),
+                    timeUsed: existing?.timeUsed || "35:00",
+                    hintsUsed: existing?.hintsUsed || 0,
+                    updatedAt: userItem.lastLogin || new Date().toISOString()
+                  };
+                }
+              }
+            });
+
+            return Object.values(map).sort((a, b) => b.score - a.score);
+          });
+        }
+      });
+    } catch (e) {
+      console.warn("RTDB Leaderboard listener error:", e);
+    }
+
+    return () => {
+      if (unsubUsers) unsubUsers();
+    };
   }, []);
 
   // Filter list by search term (nickname)

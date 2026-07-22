@@ -29,6 +29,8 @@ import {
   onValue
 } from "firebase/database";
 
+export { ref, onValue, rtdbSet as set, rtdbUpdate as update, rtdbRemove as remove, rtdbGet as get };
+
 // Real client-side Firebase configuration supplied by the user
 export const firebaseConfig = {
   apiKey: "AIzaSyCR2fz65ziwSu3T4dfPQFni1YoVgdGduac",

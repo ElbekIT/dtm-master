@@ -731,10 +731,14 @@ app.get("/api/admin/stats", (req, res) => {
 });
 
 app.post("/api/admin/ban", (req, res) => {
-  const { uid, action, duration } = req.body; // action: 'ban' | 'unban', duration: '1_hour' | '12_hours' | '1_day' | etc
+  const { uid, action, duration, reason } = req.body; // action: 'ban' | 'unban', duration: '1_hour' | '12_hours' | '1_day' | etc, reason: string
   if (!uid) return res.status(400).json({ error: "Missing uid" });
 
   let bannedUntil: string | null = null;
+  const bannedReason = reason && typeof reason === "string" && reason.trim().length > 0
+    ? reason.trim()
+    : "Tizim qoidalarini va foydalanish shartlarini buzganingiz sababli akkauntingiz bloklandi.";
+
   if (action === "ban") {
     bannedUsers.add(uid);
     bannedUntil = "permanent";
@@ -760,10 +764,11 @@ app.post("/api/admin/ban", (req, res) => {
   const idx = usersListLocal.findIndex(u => u.uid === uid);
   if (idx > -1) {
     usersListLocal[idx].bannedUntil = bannedUntil;
+    usersListLocal[idx].bannedReason = action === "ban" ? bannedReason : null;
     saveUsersDb();
   }
 
-  res.json({ success: true, banned: bannedUsers.has(uid), bannedUntil });
+  res.json({ success: true, banned: bannedUsers.has(uid), bannedUntil, bannedReason: action === "ban" ? bannedReason : null });
 });
 
 app.get("/api/admin/banned-users", (req, res) => {

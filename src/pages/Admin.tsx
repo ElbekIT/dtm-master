@@ -10,8 +10,9 @@ import {
   UserX, CheckCircle, PlusCircle, Upload, Download, Edit2, FileSpreadsheet, 
   FileText, CheckCircle2, CreditCard, Bell, Eye, X, ChevronRight, Check, Ban
 } from "lucide-react";
-import { db, handleFirestoreError, OperationType, getDocs, setDoc, deleteDoc } from "../lib/firebase";
+import { db, rtdb, handleFirestoreError, OperationType, getDocs, setDoc, deleteDoc, set } from "../lib/firebase";
 import { collection, doc, query, orderBy } from "firebase/firestore";
+import { ref, onValue } from "firebase/database";
 import { Question, User, Purchase } from "../types";
 
 export default function Admin() {
@@ -38,6 +39,7 @@ export default function Admin() {
   // Ban Duration Modal State
   const [selectedUserToBan, setSelectedUserToBan] = useState<User | null>(null);
   const [banDuration, setBanDuration] = useState<string>("1_day");
+  const [banReason, setBanReason] = useState<string>("Tizim qoidalarini va foydalanish shartlarini buzganingiz sababli akkauntingiz bloklandi.");
 
   // Receipt Preview Modal State
   const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
@@ -146,34 +148,122 @@ export default function Admin() {
 
   useEffect(() => {
     loadAdminData();
+
+    let unsubUsers: (() => void) | null = null;
+    let unsubPurchases: (() => void) | null = null;
+
+    try {
+      // 1. Live listener for RTDB users
+      const usersRef = ref(rtdb, "users");
+      unsubUsers = onValue(usersRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          if (val && typeof val === "object") {
+            const rtdbUsersList: User[] = Object.entries(val).map(([key, item]: [string, any]) => ({
+              uid: key,
+              email: item.email || "",
+              photoURL: item.photoURL || "",
+              nickname: item.nickname || "Abituriyent",
+              role: item.role || "student",
+              selectedDirection: item.selectedDirection || "O'quvchi",
+              selectedSubjects: item.selectedSubjects || [],
+              lastLogin: item.lastLogin || new Date().toISOString(),
+              createdAt: item.createdAt || new Date().toISOString(),
+              score: item.score || 0,
+              testsTakenCount: item.testsTakenCount || 0,
+              testsSolved: item.testsSolved || 0,
+              country: item.country || "O'zbekiston",
+              referralCount: item.referralCount || 0,
+              trialDaysAdded: item.trialDaysAdded || 0,
+              subscriptionStatus: item.subscriptionStatus || "none",
+              subscriptionPlan: item.subscriptionPlan || null,
+              promoCode: item.promoCode || "",
+              referredBy: item.referredBy || null,
+              premium: item.premium || false
+            }));
+
+            setUsersList((prevList) => {
+              const map: Record<string, User> = {};
+              prevList.forEach((u) => { if (u && u.uid) map[u.uid] = u; });
+              rtdbUsersList.forEach((u) => { if (u && u.uid) map[u.uid] = { ...(map[u.uid] || {}), ...u }; });
+              const merged = Object.values(map);
+              setStats((s) => ({ ...s, totalUsers: merged.length }));
+              return merged;
+            });
+          }
+        }
+      });
+
+      // 2. Live listener for RTDB purchases
+      const purchasesRef = ref(rtdb, "purchases");
+      unsubPurchases = onValue(purchasesRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const val = snapshot.val();
+          if (val && typeof val === "object") {
+            const rtdbPurchasesList: Purchase[] = Object.entries(val).map(([key, item]: [string, any]) => ({
+              id: key,
+              uid: item.uid || key,
+              nickname: item.nickname || "Abituriyent",
+              email: item.email || "",
+              plan: item.plan || "oylik",
+              price: item.price || 50000,
+              receiptImage: item.receiptImage || "",
+              status: item.status || "Tekshirilyapti",
+              createdAt: item.createdAt || new Date().toISOString(),
+              updatedAt: item.updatedAt || new Date().toISOString()
+            }));
+
+            setPurchasesList(rtdbPurchasesList);
+            const pendingCount = rtdbPurchasesList.filter((p) => p.status === "Tekshirilyapti").length;
+            setStats((s) => ({ ...s, pendingPurchasesCount: pendingCount }));
+          }
+        }
+      });
+    } catch (e) {
+      console.warn("Admin RTDB listeners setup note:", e);
+    }
+
+    return () => {
+      if (unsubUsers) unsubUsers();
+      if (unsubPurchases) unsubPurchases();
+    };
   }, []);
 
-  // Submit Ban with Selected Duration
+  // Submit Ban with Selected Duration & Reason
   const handleBanUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserToBan) return;
 
     try {
+      const finalReason = banReason.trim() || "Tizim qoidalarini va foydalanish shartlarini buzganingiz sababli akkauntingiz bloklandi.";
+
       const res = await fetch("/api/admin/ban", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           uid: selectedUserToBan.uid, 
           action: "ban", 
-          duration: banDuration 
+          duration: banDuration,
+          reason: finalReason
         })
       });
 
       if (res.ok) {
         const data = await res.json();
         
-        // Sync duration-based ban timestamp in Firestore user doc
+        // Sync duration-based ban timestamp & reason in Firestore & RTDB user doc
         const userDocRef = doc(db, "users", selectedUserToBan.uid);
         await setDoc(userDocRef, { 
-          bannedUntil: data.bannedUntil 
+          bannedUntil: data.bannedUntil,
+          bannedReason: finalReason
         }, { merge: true });
 
-        alert(`${selectedUserToBan.nickname} muvaffaqiyatli bloklandi.`);
+        try {
+          await set(ref(rtdb, `users/${selectedUserToBan.uid}/bannedUntil`), data.bannedUntil);
+          await set(ref(rtdb, `users/${selectedUserToBan.uid}/bannedReason`), finalReason);
+        } catch (_) {}
+
+        alert(`${selectedUserToBan.nickname} muvaffaqiyatli bloklandi va tizimdan chiqarib yuborildi.`);
         setSelectedUserToBan(null);
         loadAdminData();
       }
@@ -192,11 +282,17 @@ export default function Admin() {
       });
 
       if (res.ok) {
-        // Sync unban in Firestore
+        // Sync unban in Firestore & RTDB
         const userDocRef = doc(db, "users", uid);
         await setDoc(userDocRef, { 
-          bannedUntil: null 
+          bannedUntil: null,
+          bannedReason: null 
         }, { merge: true });
+
+        try {
+          await set(ref(rtdb, `users/${uid}/bannedUntil`), null);
+          await set(ref(rtdb, `users/${uid}/bannedReason`), null);
+        } catch (_) {}
 
         alert("Abituriyent blokdan chiqarildi.");
         loadAdminData();
@@ -214,6 +310,10 @@ export default function Admin() {
       // If purchase request exists, clean it up too
       try {
         await deleteDoc(doc(db, "purchases", uid));
+      } catch (_) {}
+
+      try {
+        await set(ref(rtdb, `users/${uid}`), null);
       } catch (_) {}
 
       // Delete from server database as well
@@ -240,19 +340,29 @@ export default function Admin() {
 
       const premiumUntilDate = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
 
-      // 1. Update purchase state in Firestore
+      // 1. Update purchase state in Firestore & RTDB
       await setDoc(doc(db, "purchases", purchase.uid), {
         status: "Tastiqlandi",
         updatedAt: now.toISOString()
       }, { merge: true });
 
-      // 2. Update user premium states in Firestore
+      try {
+        await set(ref(rtdb, `purchases/${purchase.uid}/status`), "Tastiqlandi");
+      } catch (_) {}
+
+      // 2. Update user premium states in Firestore & RTDB
       const userUpdateFields = {
         premium: true,
         subscriptionStatus: "Tastiqlandi",
         premiumUntil: premiumUntilDate.toISOString()
       };
       await setDoc(doc(db, "users", purchase.uid), userUpdateFields, { merge: true });
+
+      try {
+        await set(ref(rtdb, `users/${purchase.uid}/premium`), true);
+        await set(ref(rtdb, `users/${purchase.uid}/subscriptionStatus`), "Tastiqlandi");
+        await set(ref(rtdb, `users/${purchase.uid}/premiumUntil`), premiumUntilDate.toISOString());
+      } catch (_) {}
 
       // Sync with server database
       try {
@@ -265,15 +375,20 @@ export default function Admin() {
         console.warn("Failed to sync premium state to server:", err);
       }
 
-      // 3. Dispatch congratulations Notification to the student
+      // 3. Dispatch congratulations Notification to the student in Firestore & RTDB
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
-      await setDoc(doc(db, "notifications", notifId), {
+      const notifObj = {
         id: notifId,
         userId: purchase.uid,
         title: "Premium obuna tasdiqlandi! 🎉",
         message: `Tabriklaymiz! Siz yuborgan to'lov cheki tasdiqlandi. Siz uchun ${purchase.plan === 'haftalik' ? 'haftalik' : purchase.plan === 'oylik' ? 'oylik' : 'yillik'} premium obunasi faollashtirildi. Barcha imtihonlar va savollar hozirda ochiq!`,
         createdAt: now.toISOString()
-      });
+      };
+      await setDoc(doc(db, "notifications", notifId), notifObj);
+
+      try {
+        await set(ref(rtdb, `notifications/${notifId}`), notifObj);
+      } catch (_) {}
 
       alert(`${purchase.nickname} uchun premium obuna muvaffaqiyatli faollashtirildi!`);
       loadAdminData();
@@ -287,17 +402,25 @@ export default function Admin() {
   const handleRejectPurchase = async (purchase: Purchase) => {
     try {
       const now = new Date();
-      // 1. Update purchase state in Firestore
+      // 1. Update purchase state in Firestore & RTDB
       await setDoc(doc(db, "purchases", purchase.uid), {
         status: "Tekshirilmadi",
         updatedAt: now.toISOString()
       }, { merge: true });
 
-      // 2. Update user subscriptionStatus in Firestore
+      try {
+        await set(ref(rtdb, `purchases/${purchase.uid}/status`), "Tekshirilmadi");
+      } catch (_) {}
+
+      // 2. Update user subscriptionStatus in Firestore & RTDB
       const userUpdateFields = {
         subscriptionStatus: "Tekshirilmadi"
       };
       await setDoc(doc(db, "users", purchase.uid), userUpdateFields, { merge: true });
+
+      try {
+        await set(ref(rtdb, `users/${purchase.uid}/subscriptionStatus`), "Tekshirilmadi");
+      } catch (_) {}
 
       // Sync with server database
       try {
@@ -312,13 +435,18 @@ export default function Admin() {
 
       // 3. Dispatch correction request Notification to the student
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
-      await setDoc(doc(db, "notifications", notifId), {
+      const notifObj = {
         id: notifId,
         userId: purchase.uid,
         title: "To'lov cheki rad etildi ⚠️",
         message: "Afsuski, siz yuklagan to'lov cheki ma'lumotlari tasdiqlanmadi. Iltimos, chek rasmi xiraligi yoki boshqa chek yuklanganligini tekshirib, qaytadan yuboring.",
         createdAt: now.toISOString()
-      });
+      };
+      await setDoc(doc(db, "notifications", notifId), notifObj);
+
+      try {
+        await set(ref(rtdb, `notifications/${notifId}`), notifObj);
+      } catch (_) {}
 
       alert(`${purchase.nickname} uchun to'lov rad etildi va xabarnoma yuborildi.`);
       loadAdminData();
@@ -339,13 +467,18 @@ export default function Admin() {
     setSendingNotif(true);
     try {
       const notifId = `announcement_${Date.now()}`;
-      await setDoc(doc(db, "notifications", notifId), {
+      const notifObj = {
         id: notifId,
         userId: notifTarget,
         title: notifTitle.trim(),
         message: notifMessage.trim(),
         createdAt: new Date().toISOString()
-      });
+      };
+      await setDoc(doc(db, "notifications", notifId), notifObj);
+
+      try {
+        await set(ref(rtdb, `notifications/${notifId}`), notifObj);
+      } catch (_) {}
 
       alert("Xabarnoma muvaffaqiyatli yuborildi!");
       setNotifTitle("");
@@ -568,71 +701,103 @@ export default function Admin() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
                   {usersList.map((user) => {
-                    const isBannedServer = bannedUids.includes(user.uid);
+                    if (!user || !user.uid) return null;
+
+                    const nickname = typeof user.nickname === "string" && user.nickname.trim().length > 0 ? user.nickname : "Abituriyent";
+                    const email = typeof user.email === "string" && user.email.trim().length > 0 ? user.email : "Email mavjud emas";
+                    const photoURL = typeof user.photoURL === "string" ? user.photoURL : "";
+                    const role = typeof user.role === "string" ? user.role : "student";
+                    const score = typeof user.score === "number" ? user.score : 0;
+                    const testsSolved = typeof user.testsSolved === "number" ? user.testsSolved : 0;
+                    const promoCode = typeof user.promoCode === "string" ? user.promoCode : "";
+                    const subscriptionStatus = typeof user.subscriptionStatus === "string" ? user.subscriptionStatus : "none";
+                    const subscriptionPlan = typeof user.subscriptionPlan === "string" ? user.subscriptionPlan : "haftalik";
+
+                    const isBannedServer = Array.isArray(bannedUids) ? bannedUids.includes(user.uid) : false;
                     const bannedUntilVal = user.bannedUntil;
-                    const isBannedLocal = bannedUntilVal && (bannedUntilVal === "permanent" || new Date(bannedUntilVal).getTime() > Date.now());
+                    const isBannedLocal = Boolean(
+                      bannedUntilVal && (
+                        bannedUntilVal === "permanent" ||
+                        (typeof bannedUntilVal === "string" && !isNaN(new Date(bannedUntilVal).getTime()) && new Date(bannedUntilVal).getTime() > Date.now())
+                      )
+                    );
                     const isBanned = isBannedServer || isBannedLocal;
+
+                    const firstLetter = nickname.charAt(0).toUpperCase();
 
                     return (
                       <tr key={user.uid} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-4 px-6">
                           <div className="flex items-center space-x-2.5">
-                            {user.photoURL ? (
-                              <img src={user.photoURL} alt={user.nickname} className="w-8 h-8 rounded-full border border-slate-100 object-cover" referrerPolicy="no-referrer" />
+                            {photoURL ? (
+                              <img src={photoURL} alt={nickname} className="w-8 h-8 rounded-full border border-slate-100 object-cover" referrerPolicy="no-referrer" />
                             ) : (
-                              <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center font-bold text-xs">{user.nickname.charAt(0).toUpperCase()}</div>
+                              <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center font-bold text-xs">{firstLetter}</div>
                             )}
                             <div>
-                              <div className="font-bold text-slate-800">{user.nickname}</div>
-                              <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Promo: {user.promoCode || "Mavjud emas"}</div>
+                              <div className="font-bold text-slate-800">{nickname}</div>
+                              <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Promo: {promoCode || "Mavjud emas"}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-4 px-6 text-slate-500 font-semibold">{user.email || "Mavjud emas"}</td>
+                        <td className="py-4 px-6 text-slate-500 font-semibold">{email}</td>
                         <td className="py-4 px-6 text-center">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] ${user.role === "admin" ? "bg-red-50 text-red-600 border border-red-100" : "bg-blue-50 text-blue-600 border border-blue-100"}`}>
-                            {user.role}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] ${role === "admin" ? "bg-red-50 text-red-600 border border-red-100" : "bg-blue-50 text-blue-600 border border-blue-100"}`}>
+                            {role}
                           </span>
                         </td>
                         <td className="py-4 px-6 text-center">
-                          <span className="text-primary-600">{user.score} ball ({user.testsSolved} ta test)</span>
+                          <span className="text-primary-600">{score} ball ({testsSolved} ta test)</span>
                         </td>
                         <td className="py-4 px-6 text-center">
                           <span className={`px-2.5 py-1 rounded-lg text-[10px] border ${
-                            user.subscriptionStatus === "Tastiqlandi"
+                            subscriptionStatus === "Tastiqlandi"
                               ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                              : user.subscriptionStatus === "Tekshirilyapti"
+                              : subscriptionStatus === "Tekshirilyapti"
                               ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
                               : "bg-slate-50 text-slate-500 border-slate-100"
                           }`}>
-                            {user.subscriptionStatus === "Tastiqlandi" 
-                              ? `Faol (${user.subscriptionPlan})` 
-                              : user.subscriptionStatus === "Tekshirilyapti" 
+                            {subscriptionStatus === "Tastiqlandi" 
+                              ? `Faol (${subscriptionPlan})` 
+                              : subscriptionStatus === "Tekshirilyapti" 
                               ? "Kutilmoqda" 
                               : "Sinov muddati"}
                           </span>
                         </td>
                         <td className="py-4 px-6 text-center font-mono text-[10px] text-slate-500">
-                          {isBannedLocal 
-                            ? (bannedUntilVal === "permanent" ? "Umrbod" : new Date(bannedUntilVal!).toLocaleDateString()) 
-                            : "Aktiv"}
+                          {isBannedLocal ? (
+                            <div>
+                              <span className="font-bold text-red-600 block">
+                                {bannedUntilVal === "permanent" ? "Umrbod" : (typeof bannedUntilVal === "string" && !isNaN(new Date(bannedUntilVal).getTime()) ? new Date(bannedUntilVal).toLocaleDateString() : "Umrbod")}
+                              </span>
+                              {user.bannedReason && (
+                                <span className="text-[9px] text-slate-400 font-sans block truncate max-w-[120px] mx-auto" title={user.bannedReason}>
+                                  "{user.bannedReason}"
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-emerald-600 font-bold">Aktiv</span>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-right pr-6 flex justify-end gap-2">
                           {isBanned ? (
                             <button
                               onClick={() => handleUnbanUser(user.uid)}
-                              className="p-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer flex items-center justify-center"
+                              className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer flex items-center space-x-1 text-[11px] font-bold"
                               title="Blokdan chiqarish"
                             >
-                              <Check className="w-4 h-4" />
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Blokdan chiqarish</span>
                             </button>
                           ) : (
                             <button
                               onClick={() => setSelectedUserToBan(user)}
-                              className="p-1.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer flex items-center justify-center"
+                              className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer flex items-center space-x-1 text-[11px] font-bold"
                               title="Bloklash"
                             >
-                              <Ban className="w-4 h-4" />
+                              <Ban className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Bloklash</span>
                             </button>
                           )}
                           <button
@@ -680,59 +845,76 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                    {purchasesList.map((purchase) => (
-                      <tr key={purchase.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-4 px-6">
-                          <div>
-                            <span className="font-extrabold text-slate-800 block">{purchase.nickname}</span>
-                            <span className="text-[10px] text-slate-400 font-bold">{purchase.email || "Email mavjud emas"}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 uppercase text-primary-600">{purchase.plan} obuna</td>
-                        <td className="py-4 px-6 text-slate-800">{Number(purchase.price).toLocaleString('uz-UZ')} UZS</td>
-                        <td className="py-4 px-6">
-                          <button
-                            onClick={() => setSelectedReceipt(purchase.receiptImage)}
-                            className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Chekni ko'rish</span>
-                          </button>
-                        </td>
-                        <td className="py-4 px-6 text-slate-500 font-mono text-[10px]">
-                          {new Date(purchase.createdAt).toLocaleString('uz-UZ')}
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`px-2 py-0.5 rounded-lg text-[10px] border ${
-                            purchase.status === "Tastiqlandi"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                              : purchase.status === "Tekshirilyapti"
-                              ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
-                              : "bg-red-50 text-red-700 border-red-100"
-                          }`}>
-                            {purchase.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-right pr-6">
-                          {purchase.status === "Tekshirilyapti" && (
-                            <div className="flex gap-2 justify-end">
-                              <button
-                                onClick={() => handleApprovePurchase(purchase)}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-bold text-[10px] cursor-pointer"
-                              >
-                                Tasdiqlash
-                              </button>
-                              <button
-                                onClick={() => handleRejectPurchase(purchase)}
-                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-bold text-[10px] cursor-pointer"
-                              >
-                                Rad etish
-                              </button>
+                    {purchasesList.map((purchase) => {
+                      if (!purchase || !purchase.id) return null;
+
+                      const nickname = typeof purchase.nickname === "string" && purchase.nickname.trim().length > 0 ? purchase.nickname : "Abituriyent";
+                      const email = typeof purchase.email === "string" && purchase.email.trim().length > 0 ? purchase.email : "Email mavjud emas";
+                      const plan = typeof purchase.plan === "string" ? purchase.plan : "haftalik";
+                      const price = typeof purchase.price === "number" ? purchase.price : Number(purchase.price) || 0;
+                      const status = typeof purchase.status === "string" ? purchase.status : "Tekshirilyapti";
+                      const createdAtFormatted = purchase.createdAt && typeof purchase.createdAt === "string" && !isNaN(new Date(purchase.createdAt).getTime())
+                        ? new Date(purchase.createdAt).toLocaleString('uz-UZ')
+                        : "Sana noma'lum";
+
+                      return (
+                        <tr key={purchase.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-4 px-6">
+                            <div>
+                              <span className="font-extrabold text-slate-800 block">{nickname}</span>
+                              <span className="text-[10px] text-slate-400 font-bold">{email}</span>
                             </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-4 px-6 uppercase text-primary-600">{plan} obuna</td>
+                          <td className="py-4 px-6 text-slate-800">{price.toLocaleString('uz-UZ')} UZS</td>
+                          <td className="py-4 px-6">
+                            {purchase.receiptImage ? (
+                              <button
+                                onClick={() => setSelectedReceipt(purchase.receiptImage)}
+                                className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 cursor-pointer"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Chekni ko'rish</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">Mavjud emas</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-slate-500 font-mono text-[10px]">
+                            {createdAtFormatted}
+                          </td>
+                          <td className="py-4 px-6">
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] border ${
+                              status === "Tastiqlandi"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                : status === "Tekshirilyapti"
+                                ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
+                                : "bg-red-50 text-red-700 border-red-100"
+                            }`}>
+                              {status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-right pr-6">
+                            {status === "Tekshirilyapti" && (
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  onClick={() => handleApprovePurchase(purchase)}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-bold text-[10px] cursor-pointer"
+                                >
+                                  Tasdiqlash
+                                </button>
+                                <button
+                                  onClick={() => handleRejectPurchase(purchase)}
+                                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-bold text-[10px] cursor-pointer"
+                                >
+                                  Rad etish
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -999,11 +1181,15 @@ export default function Admin() {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 w-full max-w-sm shadow-xl"
+              className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 w-full max-w-md shadow-xl"
             >
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Ban className="w-6 h-6" />
+              </div>
+
               <h3 className="font-display font-extrabold text-slate-900 text-lg text-center mb-1">Abituriyentni bloklash</h3>
-              <p className="text-xs text-slate-500 text-center mb-6 font-semibold">
-                {selectedUserToBan.nickname} ni tizimga kirishini va test yechishini vaqtincha yoki butunlay cheklash.
+              <p className="text-xs text-slate-500 text-center mb-5 font-semibold">
+                <span className="text-slate-900 font-bold">{selectedUserToBan.nickname}</span> ni tizimdan darhol haydash va bloklash.
               </p>
               
               <form onSubmit={handleBanUserSubmit} className="space-y-4">
@@ -1024,6 +1210,36 @@ export default function Admin() {
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Bloklanish Sababi (Foydalanuvchiga ko'rinadi)</label>
+                  <textarea
+                    rows={3}
+                    value={banReason}
+                    onChange={(e) => setBanReason(e.target.value)}
+                    placeholder="Masalan: Muloqot madaniyatini va odob-ahloq qoidalarini buzgani uchun..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-800 leading-relaxed focus:bg-white focus:border-red-400 transition-all"
+                  />
+                  
+                  {/* Quick Reason Chips */}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {[
+                      "Muloqot madaniyatini buzgani uchun",
+                      "Testda g'irromlik va taqiqlangan vositalar",
+                      "Soxta to'lov cheki yuborilgani uchun",
+                      "Spam va platformaga xalaqit bergani uchun"
+                    ].map((template) => (
+                      <button
+                        key={template}
+                        type="button"
+                        onClick={() => setBanReason(template)}
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        + {template}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex space-x-3 pt-4">
                   <button
                     type="button"
@@ -1034,9 +1250,10 @@ export default function Admin() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 text-xs font-bold bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-all shadow-md shadow-amber-500/20 cursor-pointer"
+                    className="flex-1 py-3 text-xs font-extrabold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center justify-center space-x-1"
                   >
-                    Bloklash
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>Bloklash & Otvorish</span>
                   </button>
                 </div>
               </form>

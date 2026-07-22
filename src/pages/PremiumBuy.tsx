@@ -159,7 +159,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
 
       await setDoc(purchaseDocRef, purchaseData);
 
-      // Update user subscription state in Firestore
+      // Update user subscription state in Firestore & Realtime Database
       const userDocRef = doc(db, "users", currentUser.uid);
       await setDoc(userDocRef, {
         subscriptionStatus: "Tekshirilyapti",
@@ -173,27 +173,6 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         subscriptionPlan: selectedPlan
       };
       if (onUserUpdate) onUserUpdate(updatedUser);
-
-      // Forward to server/Telegram API asynchronously with timeout guard
-      console.log("[Purchase] Forwarding receipt to Telegram...");
-      try {
-        await fetch("/api/premium/purchase", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            uid: currentUser.uid,
-            nickname: currentUser.nickname,
-            email: currentUser.email,
-            plan: selectedPlan,
-            price: planDetails.price,
-            receiptImage: base64Image
-          })
-        });
-      } catch (tgErr) {
-        console.warn("[Purchase] Telegram notification request handled with warning:", tgErr);
-      }
 
       setSuccess(true);
       if (onSuccess) onSuccess();

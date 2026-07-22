@@ -6,8 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Bell, Calendar, Inbox, CheckCircle, ShieldAlert, Award } from "lucide-react";
-import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
-import { collection, query, where, orderBy } from "firebase/firestore";
+import { db, rtdb, ref, onValue } from "../lib/firebase";
 import { User, Notification } from "../types";
 
 interface NotificationsProps {
@@ -19,54 +18,30 @@ export default function Notifications({ currentUser }: NotificationsProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      setLoading(true);
-      try {
-        // Query global notifications
-        const globalQuery = query(
-          collection(db, "notifications"),
-          where("userId", "==", "all"),
-          orderBy("createdAt", "desc")
-        );
-
-        // Query personal notifications
-        const personalQuery = query(
-          collection(db, "notifications"),
-          where("userId", "==", currentUser.uid),
-          orderBy("createdAt", "desc")
-        );
-
-        const [globalSnap, personalSnap] = await Promise.all([
-          getDocs(globalQuery).catch(() => null),
-          getDocs(personalQuery).catch(() => null)
-        ]);
-
-        const list: Notification[] = [];
-
-        if (globalSnap) {
-          globalSnap.forEach((doc) => {
-            list.push({ id: doc.id, ...doc.data() } as Notification);
-          });
-        }
-
-        if (personalSnap) {
-          personalSnap.forEach((doc) => {
-            list.push({ id: doc.id, ...doc.data() } as Notification);
-          });
-        }
-
-        // Sort combined list by date descending
-        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        setNotifications(list);
-      } catch (err) {
-        console.error("Failed to load notifications:", err);
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    const notifRef = ref(rtdb, "notifications");
+    const unsub = onValue(notifRef, (snapshot) => {
+      const list: Notification[] = [];
+      if (snapshot.exists()) {
+        const val = snapshot.val();
+        Object.entries(val).forEach(([id, item]: [string, any]) => {
+          if (item && (item.userId === "all" || item.userId === currentUser.uid)) {
+            list.push({
+              id,
+              userId: item.userId || "all",
+              title: item.title || "Xabarnoma",
+              message: item.message || "",
+              createdAt: item.createdAt || new Date().toISOString()
+            });
+          }
+        });
       }
-    };
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setNotifications(list);
+      setLoading(false);
+    });
 
-    fetchNotifications();
+    return () => unsub();
   }, [currentUser]);
 
   return (

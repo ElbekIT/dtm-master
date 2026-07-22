@@ -6,9 +6,10 @@
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, collection, query, where, getDocs } from "firebase/firestore";
-import { auth, db, getDoc, setDoc } from "./lib/firebase";
+import { auth, db, rtdb, ref, onValue, getDoc, setDoc } from "./lib/firebase";
 import { User, Question } from "./types";
 import { PendingReferral } from "./lib/promo";
+import { hasActiveAccess } from "./lib/premium";
 import ReferralRewardModal from "./components/ReferralRewardModal";
 import { HelpCircle, Award, CheckCircle2, ShieldCheck, Cpu } from "lucide-react";
 
@@ -23,12 +24,18 @@ import Admin from "./pages/Admin";
 import Notifications from "./pages/Notifications";
 import PremiumBuy from "./pages/PremiumBuy";
 
-// Helpers
-import { hasActiveAccess } from "./lib/premium";
-
 // Components
 import Header from "./components/Header";
 import LoadingScreen from "./components/LoadingScreen";
+import BannedScreen from "./components/BannedScreen";
+
+export function isUserBanned(user: User | null): boolean {
+  if (!user || !user.bannedUntil) return false;
+  if (user.bannedUntil === "permanent") return true;
+  const exp = new Date(user.bannedUntil).getTime();
+  if (isNaN(exp)) return true;
+  return exp > Date.now();
+}
 
 // Offline Test Generator
 import { generateClientTestSession } from "./lib/testGenerator";
@@ -49,6 +56,104 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(getInitialUser);
   const [authChecking, setAuthChecking] = useState(true);
   const [currentTab, setCurrentTab] = useState<string>("home");
+  const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  // Tab switch handler that clears notification badge when viewing notifications
+  const handleSelectTab = (tab: string) => {
+    setCurrentTab(tab);
+    if (tab === "notifications" && currentUser) {
+      try {
+        localStorage.setItem(`dtm_notif_last_viewed_${currentUser.uid}`, new Date().toISOString());
+      } catch (e) {}
+      setUnreadNotifCount(0);
+    }
+  };
+
+  // Realtime notification listener for unread badge count
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setUnreadNotifCount(0);
+      return;
+    }
+
+    const notifRef = ref(rtdb, "notifications");
+    const unsub = onValue(notifRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const val = snapshot.val();
+        let lastViewed = "2000-01-01T00:00:00.000Z";
+        try {
+          lastViewed = localStorage.getItem(`dtm_notif_last_viewed_${currentUser.uid}`) || "2000-01-01T00:00:00.000Z";
+        } catch (e) {}
+
+        let count = 0;
+        Object.values(val).forEach((n: any) => {
+          if (n && (n.userId === "all" || n.userId === currentUser.uid)) {
+            if (n.createdAt && n.createdAt > lastViewed) {
+              count++;
+            }
+          }
+        });
+        setUnreadNotifCount(count);
+      }
+    });
+
+    return () => unsub();
+  }, [currentUser?.uid]);
+
+  // Realtime live sync for currentUser document from RTDB
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    const userRtdbRef = ref(rtdb, `users/${currentUser.uid}`);
+    const unsub = onValue(userRtdbRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const updatedData = snapshot.val() as Partial<User>;
+        if (updatedData) {
+          setCurrentUser((prev) => {
+            if (!prev) return null;
+            const merged = { ...prev, ...updatedData };
+            try {
+              localStorage.setItem("dtm_cached_user", JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [currentUser?.uid]);
+
+  // Auto-expire subscription if premiumUntil passed
+  useEffect(() => {
+    if (!currentUser || !currentUser.premium || !currentUser.premiumUntil) return;
+
+    const checkExpiry = async () => {
+      const remainingMs = new Date(currentUser.premiumUntil!).getTime() - Date.now();
+      if (remainingMs <= 0 && currentUser.premium) {
+        console.log("Subscription expired, auto updating user state...");
+        const expiredUser: User = {
+          ...currentUser,
+          premium: false,
+          subscriptionStatus: "expired"
+        };
+        setCurrentUser(expiredUser);
+        try {
+          localStorage.setItem("dtm_cached_user", JSON.stringify(expiredUser));
+          await setDoc(doc(db, "users", currentUser.uid), {
+            premium: false,
+            subscriptionStatus: "expired"
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Failed to update expired status in DB:", e);
+        }
+      }
+    };
+
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 10000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   // Exam States
   const [activeTestSession, setActiveTestSession] = useState<{
@@ -233,6 +338,13 @@ export default function App() {
   // Triggers starting a test securely with server-side generation
   const handleStartTest = async (directionId: string, directionName: string) => {
     if (!currentUser) return;
+
+    if (!hasActiveAccess(currentUser)) {
+      alert("Sizning VIP Premium obunangiz yoki Bepul sinov muddatingiz tugagan! Test yechishda davom etish uchun VIP Obunani yangilang.");
+      setCurrentTab("premium");
+      return;
+    }
+
     try {
       const response = await fetch("/api/test/start", {
         method: "POST",
@@ -284,6 +396,11 @@ export default function App() {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // Banned user -> Render Banned Screen immediately in real time
+  if (isUserBanned(currentUser)) {
+    return <BannedScreen currentUser={currentUser} onLogout={handleLogout} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
       {/* 1. Header (Navbar is hidden during active test to prevent cheating / distraction) */}
@@ -291,68 +408,46 @@ export default function App() {
         <Header
           currentUser={currentUser}
           currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
+          setCurrentTab={handleSelectTab}
           onLogout={handleLogout}
+          unreadNotifCount={unreadNotifCount}
         />
       )}
 
       {/* 2. Main content container */}
       <main className="flex-grow">
-        {currentTab === "home" && (
-          currentUser.role === "admin" ? (
-            <Admin />
-          ) : hasActiveAccess(currentUser) ? (
-            <Home
-              currentUser={currentUser}
-              onStartTest={handleStartTest}
-              setCurrentTab={setCurrentTab}
-            />
-          ) : (
-            <PremiumBuy currentUser={currentUser} isBlocker={true} />
-          )
-        )}
-
-        {currentTab === "active_test" && activeTestSession && (
+        {currentTab === "active_test" && activeTestSession ? (
           <TestScreen
             currentUser={currentUser}
             testSession={activeTestSession}
             onFinishTest={handleFinishTest}
           />
-        )}
-
-        {currentTab === "results" && activeResults && (
+        ) : currentTab === "results" && activeResults ? (
           <ResultScreen
             currentUser={currentUser}
             results={activeResults}
             onReturnHome={handleReturnHome}
           />
-        )}
-
-        {currentTab === "ranking" && <Leaderboard />}
-
-        {currentTab === "premium" && (
+        ) : currentTab === "ranking" ? (
+          <Leaderboard />
+        ) : currentTab === "premium" ? (
           <PremiumBuy
             currentUser={currentUser}
             isBlocker={false}
             onSuccess={() => handleUserUpdate({ ...currentUser, subscriptionStatus: "Tekshirilyapti" })}
             onUserUpdate={handleUserUpdate}
           />
-        )}
-
-        {currentTab === "notifications" && <Notifications currentUser={currentUser} />}
-
-        {currentTab === "profile" && (
+        ) : currentTab === "notifications" ? (
+          <Notifications currentUser={currentUser} />
+        ) : currentTab === "profile" ? (
           <Profile 
             currentUser={currentUser} 
             onUserUpdate={handleUserUpdate} 
             onDeleteAccount={handleLogout} 
           />
-        )}
-
-        {currentTab === "admin" && currentUser.role === "admin" && <Admin />}
-
-        {/* 3. About Project Page in Uzbek */}
-        {currentTab === "about" && (
+        ) : currentTab === "admin" && currentUser.role === "admin" ? (
+          <Admin />
+        ) : currentTab === "about" ? (
           <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 select-none">
             <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 shadow-xs space-y-8">
               <div className="text-center pb-6 border-b border-slate-100">
@@ -373,6 +468,16 @@ export default function App() {
                   </div>
                   <p className="text-slate-500">
                     Test tizimi to'liq 3 soatlik (180 daqiqa) vaqt limiti, to'g'ri bal hisoblash, hamda copy-paste, oyna almashtirishni fiksatsiyalovchi kiber-nazoratchi tizimlarga ega.
+                  </p>
+                </div>
+
+                <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                  <div className="text-slate-800 font-bold flex items-center space-x-1.5">
+                    <ShieldCheck className="w-5 h-5 text-primary-600" />
+                    <span>Reyting va Natijalar Tahlili</span>
+                  </div>
+                  <p className="text-slate-500">
+                    Har bir topshirilgan imtihon natijalari O'zbekiston bo'yicha yagona reyting tizimida saqlanadi va tahlil qilinadi.
                   </p>
                 </div>
 
@@ -402,6 +507,16 @@ export default function App() {
               </div>
             </div>
           </div>
+        ) : currentUser.role === "admin" ? (
+          <Admin />
+        ) : hasActiveAccess(currentUser) ? (
+          <Home
+            currentUser={currentUser}
+            onStartTest={handleStartTest}
+            setCurrentTab={setCurrentTab}
+          />
+        ) : (
+          <PremiumBuy currentUser={currentUser} isBlocker={true} />
         )}
       </main>
 

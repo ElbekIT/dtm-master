@@ -23,6 +23,7 @@ export interface User {
   premium?: boolean;
   premiumUntil?: string;
   bannedUntil?: string | null;
+  bannedReason?: string | null;
   referredBy?: string;
 }
 
