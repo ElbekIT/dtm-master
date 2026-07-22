@@ -40,6 +40,10 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     yillik: { name: "Yillik", price: 100000, label: "100,000 UZS / yil" },
   };
 
+  // Telegram Bot ma'lumotlari
+  const TELEGRAM_BOT_TOKEN = "8793002359:AAHEv9w1N7x3Q1ud_UB1hxAJS2qAo4IEPDs";
+  const TELEGRAM_CHAT_ID = "8269163077";
+
   const handleCopyCard = () => {
     navigator.clipboard.writeText("4073420084569577");
     setCopied(true);
@@ -83,59 +87,113 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     }
   };
 
-  // Convert & Compress File to Lightweight Base64 JPEG - KUCHAYTIRILGAN
+  // Convert File to Base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          
-          // HAJMNI KICHIK QILISH UCHUN MAX SIZES
-          const MAX_WIDTH = 600;
-          const MAX_HEIGHT = 600;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height = Math.round((height * MAX_WIDTH) / width);
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width = Math.round((width * MAX_HEIGHT) / height);
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            // QUALITY: 0.6 - YAXSHI SIFAT VA KICHIK HAJM
-            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.6);
-            
-            // HAJMNI TEKSHIR VA CONSOLDA KO'RSAT
-            const sizeInKB = (compressedBase64.length / 1024).toFixed(2);
-            console.log(`📸 Siqilgan rasm hajmi: ${sizeInKB} KB`);
-            
-            resolve(compressedBase64);
-          } else {
-            reject(new Error("Canvas konteksti olinmadi"));
-          }
-        };
-        img.onerror = () => reject(new Error("Rasm yuklanmadi"));
+        resolve(event.target?.result as string);
       };
       reader.onerror = () => reject(new Error("Fayl o'qilmadi"));
     });
   };
 
+  // Telegram Bot'ga rasm va ma'lumot yuborish
+  const sendToTelegramBot = async (base64Image: string, planName: string, planPrice: number) => {
+    try {
+      // Base64 rasmni Blob'ga o'zgartirish
+      const arr = base64Image.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr = atob(arr[1]);
+      const n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        u8arr[i] = bstr.charCodeAt(i);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      
+      // FormData yaratish
+      const formData = new FormData();
+      formData.append("chat_id", TELEGRAM_CHAT_ID);
+      formData.append("photo", blob, "receipt.jpg");
+
+      // Caption matnini tayyorlash
+      const caption = `
+🔔 YANGI TO'LOV SO'ROVI
+
+👤 Foydalanuvchi: ${currentUser.nickname || currentUser.email}
+📧 Email: ${currentUser.email}
+📱 UID: ${currentUser.uid}
+
+💳 Tarif: ${planName}
+💰 Summa: ${planPrice.toLocaleString('uz-UZ')} UZS
+
+⏰ Vaqt: ${new Date().toLocaleString("uz-UZ")}
+
+✅ TASDIQLASH UCHUN ADMIN PANELDA "TASTIQLASH" TUGMASINI BOSING
+      `.trim();
+
+      formData.append("caption", caption);
+      formData.append("parse_mode", "HTML");
+
+      // Telegram API'ga rasm yuborish
+      const response = await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        { method: "POST", body: formData }
+      );
+
+      if (!response.ok) {
+        throw new Error("Telegram'ga rasm yuborilmadi");
+      }
+
+      console.log("✅ Rasm Telegram'ga yuborildi!");
+      return true;
+    } catch (err) {
+      console.error("❌ Telegram yuborish xatosi:", err);
+      throw err;
+    }
+  };
+
+  // Firebase'ga faqat TEXT ma'lumot saqlash (rasm emas)
+  const saveToPurchaseRecord = async (planName: string, planPrice: number) => {
+    try {
+      const nowString = new Date().toISOString();
+
+      // Firebase'ga faqat text, rasm emas
+      const purchaseDocRef = doc(db, "purchases", currentUser.uid);
+      const purchaseData: Purchase = {
+        id: currentUser.uid,
+        uid: currentUser.uid,
+        nickname: currentUser.nickname,
+        email: currentUser.email,
+        plan: selectedPlan,
+        price: planPrice,
+        receiptImage: "", // Rasm yoq, faqat bo'sh string
+        status: "Tekshirilyapti",
+        createdAt: nowString,
+        updatedAt: nowString
+      };
+
+      await setDoc(purchaseDocRef, purchaseData);
+      console.log("✅ To'lov recordi Firebase'ga saqlandi (rasm yoq)");
+
+      // Foydalanuvchi statusini yangilash
+      const userDocRef = doc(db, "users", currentUser.uid);
+      await setDoc(userDocRef, {
+        subscriptionStatus: "Tekshirilyapti",
+        subscriptionPlan: selectedPlan
+      }, { merge: true });
+
+      console.log("✅ Foydalanuvchi statusi yangilanildi");
+      return true;
+    } catch (err) {
+      console.error("❌ Firebase saqlash xatosi:", err);
+      throw err;
+    }
+  };
+
+  // ASOSIY SUBMIT FUNCTIYASI - HAMMASI BIT OY'O'Z
   const handleSubmit = async () => {
     if (!file) {
       setError("Iltimos, to'lov cheki rasmini yuklang.");
@@ -148,71 +206,31 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     try {
       console.log("🚀 To'lov jarayoni boshlanmoqda...");
       
+      // 1. Rasmni Base64'ga o'zgartirish
       const base64Image = await fileToBase64(file);
-      const sizeInKB = (base64Image.length / 1024).toFixed(2);
-      
-      console.log(`✅ Rasm siqildi: ${sizeInKB} KB`);
-      
-      // HAJM LIMITINI TEKSHIR
-      if (base64Image.length > 500000) {
-        setError(`❌ Rasm juda katta (${sizeInKB} KB). Iltimos, kichikroq rasm tanlang.`);
-        setSubmitting(false);
-        console.error("Rasm juda katta!");
-        return;
-      }
-
       const planDetails = plans[selectedPlan];
-      const nowString = new Date().toISOString();
 
-      // Create purchase document in Firestore
-      const purchaseDocRef = doc(db, "purchases", currentUser.uid);
-      const purchaseData: Purchase = {
-        id: currentUser.uid,
-        uid: currentUser.uid,
-        nickname: currentUser.nickname,
-        email: currentUser.email,
-        plan: selectedPlan,
-        price: planDetails.price,
-        receiptImage: base64Image,
-        status: "Tekshirilyapti",
-        createdAt: nowString,
-        updatedAt: nowString
-      };
+      console.log(`📸 Rasm konvertildi`);
+      console.log(`💳 Tarif: ${planDetails.name} - ${planDetails.price} UZS`);
 
-      console.log("📤 To'lov berkarani Firestore'ga yuborilmoqda...");
-      
-      await setDoc(purchaseDocRef, purchaseData)
-        .then(() => console.log("✅ To'lov berkarani saqlanildi!"))
-        .catch((err) => {
-          console.error("❌ Purchase setDoc xatosi:", err);
-          throw new Error(`To'lov qo'shishda xatolik: ${err.message}`);
-        });
+      // 2. TELEGRAM BOT'GA YUBORISH (Rasm + Ma'lumot + Admin uchun xabarnoma)
+      console.log("📤 Telegram Bot'ga yuborilmoqda...");
+      await sendToTelegramBot(base64Image, planDetails.name, planDetails.price);
 
-      // Update user subscription state in Firestore
-      console.log("📤 Foydalanuvchi ma'lumotlari yangilanmoqda...");
-      
-      const userDocRef = doc(db, "users", currentUser.uid);
-      await setDoc(userDocRef, {
-        subscriptionStatus: "Tekshirilyapti",
-        subscriptionPlan: selectedPlan
-      }, { merge: true })
-        .then(() => console.log("✅ Foydalanuvchi ma'lumotlari yangilanildi!"))
-        .catch((err) => {
-          console.error("❌ User setDoc xatosi:", err);
-          throw new Error(`Foydalanuvchi yangilanishida xatolik: ${err.message}`);
-        });
+      // 3. FIREBASE'GA SAQLASH (Faqat TEXT, rasm emas)
+      console.log("💾 Firebase'ga saqlash...");
+      await saveToPurchaseRecord(planDetails.name, planDetails.price);
 
-      // Notify parent app if callback available
+      // 4. Foydalanuvchini yangilash
       const updatedUser: User = {
         ...currentUser,
         subscriptionStatus: "Tekshirilyapti",
         subscriptionPlan: selectedPlan
       };
-      
-      console.log("📢 Parent komponentga bildirilmoqda...");
+
       if (onUserUpdate) onUserUpdate(updatedUser);
 
-      console.log("🎉 To'lov muvaffaqiyatli yuborildi!");
+      console.log("🎉 Barcha jarayonlar muvaffaqiyatli!");
       setSuccess(true);
       if (onSuccess) onSuccess();
       
