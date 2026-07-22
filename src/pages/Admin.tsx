@@ -67,6 +67,10 @@ export default function Admin() {
   const [bulkJsonInput, setBulkJsonInput] = useState("");
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
+  // Telegram Bot ma'lumotlari
+  const TELEGRAM_BOT_TOKEN = "8793002359:AAHEv9w1N7x3Q1ud_UB1hxAJS2qAo4IEPDs";
+  const TELEGRAM_CHAT_ID = "8269163077";
+
   // Load server-side stats, users, purchases, and questions
   const loadAdminData = async () => {
     setLoading(true);
@@ -270,6 +274,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.error("Failed to ban user:", err);
+      alert("Bloklash jarayonida xatolik yuz berdi.");
     }
   };
 
@@ -300,6 +305,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.error("Failed to unban user:", err);
+      alert("Blokdan chiqarish jarayonida xatolik yuz berdi.");
     }
   };
 
@@ -331,7 +337,7 @@ export default function Admin() {
     }
   };
 
-  // Approve Premium Purchase with automatic plan duration
+  // Approve Premium Purchase with automatic plan duration + TELEGRAM
   const handleApprovePurchase = async (purchase: Purchase) => {
     try {
       const now = new Date();
@@ -376,13 +382,44 @@ export default function Admin() {
         console.warn("Failed to sync premium state to server:", err);
       }
 
-      // 3. Dispatch congratulations Notification to the student in Firestore & RTDB
+      // 3. TELEGRAM BOT'GA XABARNOMA YUBORISH
+      try {
+        const telegramMessage = `
+✅ PREMIUM OBUNA TASTIQLANDI!
+
+👤 Foydalanuvchi: ${purchase.nickname}
+📧 Email: ${purchase.email}
+📱 UID: ${purchase.uid}
+
+💳 Tarif: ${purchase.plan === 'haftalik' ? 'Haftalik' : purchase.plan === 'oylik' ? 'Oylik' : 'Yillik'}
+💰 Summa: ${purchase.price.toLocaleString('uz-UZ')} UZS
+⏰ Premium muddati: ${premiumUntilDate.toLocaleString('uz-UZ')}
+
+🎉 To'lov muvaffaqiyatli tastiqlandi!
+        `.trim();
+
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: telegramMessage,
+            parse_mode: "HTML"
+          })
+        });
+
+        console.log("✅ Telegram xabarnomasi yuborildi!");
+      } catch (err) {
+        console.warn("Telegram notification failed (non-critical):", err);
+      }
+
+      // 4. Dispatch congratulations Notification to the student in Firestore & RTDB
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
       const notifObj = {
         id: notifId,
         userId: purchase.uid,
-        title: "Premium obuna tasdiqlandi! 🎉",
-        message: `Tabriklaymiz! Siz yuborgan to'lov cheki tasdiqlandi. Siz uchun ${purchase.plan === 'haftalik' ? 'haftalik' : purchase.plan === 'oylik' ? 'oylik' : 'yillik'} premium obunasi faollashtirildi. Barcha imtihonlar va savollar hozirda ochiq!`,
+        title: "Premium obuna tastiqlandi! 🎉",
+        message: `Tabriklaymiz! Siz yuborgan to'lov cheki tastiqlandi. Siz uchun ${purchase.plan === 'haftalik' ? 'haftalik' : purchase.plan === 'oylik' ? 'oylik' : 'yillik'} premium obunasi faollashtirildi. Barcha imtihonlar va savollar hozirda ochiq!`,
         createdAt: now.toISOString()
       };
       await setDoc(doc(db, "notifications", notifId), notifObj);
@@ -399,7 +436,7 @@ export default function Admin() {
     }
   };
 
-  // Reject Premium Purchase
+  // Reject Premium Purchase + TELEGRAM
   const handleRejectPurchase = async (purchase: Purchase) => {
     try {
       const now = new Date();
@@ -434,7 +471,37 @@ export default function Admin() {
         console.warn("Failed to sync rejection state to server:", err);
       }
 
-      // 3. Dispatch correction request Notification to the student
+      // 3. TELEGRAM BOT'GA RAD ETILGANLIGINI XABAR BERISH
+      try {
+        const telegramMessage = `
+❌ PREMIUM OBUNA RAD ETILDI!
+
+👤 Foydalanuvchi: ${purchase.nickname}
+📧 Email: ${purchase.email}
+📱 UID: ${purchase.uid}
+
+💳 Tarif: ${purchase.plan === 'haftalik' ? 'Haftalik' : purchase.plan === 'oylik' ? 'Oylik' : 'Yillik'}
+💰 Summa: ${purchase.price.toLocaleString('uz-UZ')} UZS
+
+⚠️ To'lov cheki ma'lumotlari tasdiqlanmadi. Foydalanuvchiga rad etilganligini xabarnoma yuborildi.
+        `.trim();
+
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: telegramMessage,
+            parse_mode: "HTML"
+          })
+        });
+
+        console.log("✅ Telegram xabarnomasi yuborildi!");
+      } catch (err) {
+        console.warn("Telegram notification failed (non-critical):", err);
+      }
+
+      // 4. Dispatch correction request Notification to the student
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
       const notifObj = {
         id: notifId,
@@ -518,6 +585,7 @@ export default function Admin() {
       }
     } catch (err) {
       console.error(err);
+      alert("Savol qo'shishda xatolik yuz berdi.");
     }
   };
 
@@ -564,6 +632,7 @@ export default function Admin() {
       document.body.removeChild(link);
     } catch (err) {
       console.error("Export results failed:", err);
+      alert("Natijalarni yuklab olishda xatolik.");
     }
   };
 
@@ -789,7 +858,7 @@ export default function Admin() {
                               title="Blokdan chiqarish"
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Blokdan chiqarish</span>
+                              <span>Chiqarish</span>
                             </button>
                           ) : (
                             <button
@@ -823,7 +892,7 @@ export default function Admin() {
           <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
             <h3 className="font-display font-extrabold text-slate-800 text-lg p-6 border-b border-slate-100 flex items-center space-x-2">
               <CreditCard className="w-5 h-5 text-primary-500" />
-              <span>Premium Obuna Sotib Olish So'rovlari (Sotib olganlar)</span>
+              <span>Premium Obuna Sotib Olish So'rovlari</span>
             </h3>
 
             {purchasesList.length === 0 ? (
@@ -866,8 +935,8 @@ export default function Admin() {
                               <span className="text-[10px] text-slate-400 font-bold">{email}</span>
                             </div>
                           </td>
-                          <td className="py-4 px-6 uppercase text-primary-600">{plan} obuna</td>
-                          <td className="py-4 px-6 text-slate-800">{price.toLocaleString('uz-UZ')} UZS</td>
+                          <td className="py-4 px-6 uppercase text-primary-600">{plan === 'haftalik' ? 'Haftalik' : plan === 'oylik' ? 'Oylik' : 'Yillik'}</td>
+                          <td className="py-4 px-6 text-slate-800 font-bold">{price.toLocaleString('uz-UZ')} UZS</td>
                           <td className="py-4 px-6">
                             {purchase.receiptImage ? (
                               <button
@@ -875,7 +944,7 @@ export default function Admin() {
                                 className="flex items-center space-x-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 transition-colors border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 cursor-pointer"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                                <span>Chekni ko'rish</span>
+                                <span>Ko'rish</span>
                               </button>
                             ) : (
                               <span className="text-slate-400 text-[10px]">Mavjud emas</span>
@@ -885,14 +954,14 @@ export default function Admin() {
                             {createdAtFormatted}
                           </td>
                           <td className="py-4 px-6">
-                            <span className={`px-2 py-0.5 rounded-lg text-[10px] border ${
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] border font-bold ${
                               status === "Tastiqlandi"
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                                 : status === "Tekshirilyapti"
                                 ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
                                 : "bg-red-50 text-red-700 border-red-100"
                             }`}>
-                              {status}
+                              {status === "Tastiqlandi" ? "✅ Tastiqlandi" : status === "Tekshirilyapti" ? "⏳ Kutilmoqda" : "❌ Rad etildi"}
                             </span>
                           </td>
                           <td className="py-4 px-6 text-right pr-6">
@@ -901,12 +970,14 @@ export default function Admin() {
                                 <button
                                   onClick={() => handleApprovePurchase(purchase)}
                                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-bold text-[10px] cursor-pointer"
+                                  title="Premium faollash"
                                 >
-                                  Tasdiqlash
+                                  Tastiqlash
                                 </button>
                                 <button
                                   onClick={() => handleRejectPurchase(purchase)}
                                   className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-bold text-[10px] cursor-pointer"
+                                  title="Rad etish"
                                 >
                                   Rad etish
                                 </button>
@@ -1071,18 +1142,18 @@ export default function Admin() {
                       onChange={(e) => setNewQuestion({ ...newQuestion, subject: e.target.value })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold"
                     >
-                      <option value="Mathematics">Mathematics (Majburiy/Mutaxassislik)</option>
-                      <option value="Physics">Physics</option>
-                      <option value="History of Uzbekistan">History of Uzbekistan</option>
-                      <option value="Mother Tongue (Uzbek)">Mother Tongue (Uzbek)</option>
-                      <option value="Foreign Language (English)">Foreign Language (English)</option>
+                      <option value="Mathematics">Matematika</option>
+                      <option value="Physics">Fizika</option>
+                      <option value="History of Uzbekistan">O'zbekiston tarixi</option>
+                      <option value="Mother Tongue (Uzbek)">Ona tili</option>
+                      <option value="Foreign Language (English)">Ingliz tili</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 font-mono">YO'NALISH ID (OPTIONAL)</label>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">YO'NALISH ID (OPTIONAL)</label>
                     <input
                       type="text"
                       placeholder="Masalan: tech"
@@ -1099,9 +1170,9 @@ export default function Admin() {
                       onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value as any })}
                       className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-bold"
                     >
-                      <option value="easy">Oson (Easy)</option>
-                      <option value="medium">O'rta (Medium)</option>
-                      <option value="hard">Qiyin (Hard)</option>
+                      <option value="easy">Oson</option>
+                      <option value="medium">O'rta</option>
+                      <option value="hard">Qiyin</option>
                     </select>
                   </div>
                 </div>
@@ -1111,28 +1182,28 @@ export default function Admin() {
                   className="w-full dtm-btn-primary py-3 text-xs flex items-center justify-center space-x-1.5 cursor-pointer font-bold"
                 >
                   <PlusCircle className="w-4 h-4" />
-                  <span>Savolni Bazaga Saqlash</span>
+                  <span>Savolni Saqlash</span>
                 </button>
               </form>
             </div>
 
-            {/* Right Static info on Question Layout structure */}
+            {/* Right Static info */}
             <div className="lg:col-span-6 space-y-6">
               <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-4">
                 <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
                   <HelpCircle className="w-5 h-5 text-indigo-500" />
-                  <span>DTM Savollar Formati haqida</span>
+                  <span>DTM Savollar Formati</span>
                 </h3>
                 <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-                  DTM MASTER platformasi to'liq 5 ta fandan iborat 90 ta test savollaridan tashkil topgan kompleks imtihonlarni taqdim etadi. Ushbu testlar Fisher-Yates algoritmi bo'yicha dinamik ravishda quyidagi fojiaviy tarqatish bo'yicha tuziladi:
+                  DTM MASTER platformasi 5 ta fandan iborat 90 ta test savollaridan tashkil topgan kompleks imtihonlarni taqdim etadi.
                 </p>
                 
                 <div className="space-y-2 font-semibold text-xs text-slate-600 border-t border-slate-100 pt-4">
-                  <p className="flex justify-between"><span>📚 Matematika (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol (1.1 ball)</span></p>
-                  <p className="flex justify-between"><span>📚 O'zbekiston tarixi (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol (1.1 ball)</span></p>
-                  <p className="flex justify-between"><span>📚 Ona tili (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol (1.1 ball)</span></p>
-                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 1 (Matematika/Fizika):</span> <span className="font-mono font-bold text-slate-800">30 ta savol (3.1 ball)</span></p>
-                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 2 (Fizika/Chet tili):</span> <span className="font-mono font-bold text-slate-800">30 ta savol (2.1 ball)</span></p>
+                  <p className="flex justify-between"><span>📚 Matematika (Majburiy):</span> <span className="font-bold text-slate-800">10 ta savol</span></p>
+                  <p className="flex justify-between"><span>📚 O'zbekiston tarixi:</span> <span className="font-bold text-slate-800">10 ta savol</span></p>
+                  <p className="flex justify-between"><span>📚 Ona tili:</span> <span className="font-bold text-slate-800">10 ta savol</span></p>
+                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 1:</span> <span className="font-bold text-slate-800">30 ta savol</span></p>
+                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 2:</span> <span className="font-bold text-slate-800">30 ta savol</span></p>
                 </div>
               </div>
             </div>
@@ -1144,9 +1215,9 @@ export default function Admin() {
         {activeSubTab === "import" && (
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
             <div>
-              <h3 className="font-display font-extrabold text-slate-800 text-lg">JSON orqali savollar kiritish</h3>
+              <h3 className="font-display font-extrabold text-slate-800 text-lg">JSON orqali savollar import</h3>
               <p className="text-sm text-slate-500 mt-1">
-                Quyidagi maydonga savollarning to'g'ri JSON massivini joylashtiring va "Importni boshlash" tugmasini bosing.
+                Savollarning JSON massivini joylashtiring va import tugmasini bosing.
               </p>
             </div>
 
@@ -1156,18 +1227,22 @@ export default function Admin() {
                 value={bulkJsonInput}
                 onChange={(e) => setBulkJsonInput(e.target.value)}
                 placeholder={`[\n  {\n    "question": "O'zbekiston poytaxti qaysi?",\n    "A": "Toshkent",\n    "B": "Samarqand",\n    "C": "Buxoro",\n    "D": "Xiva",\n    "correctAnswer": "A",\n    "subject": "History of Uzbekistan"\n  }\n]`}
-                className="w-full p-4 bg-slate-900 text-slate-100 font-mono text-xs rounded-2xl outline-none"
+                className="w-full p-4 bg-slate-900 text-slate-100 font-mono text-xs rounded-2xl outline-none border border-slate-700"
               />
 
               {importStatus && (
-                <div className="text-xs font-bold text-primary-700 bg-primary-50 p-3 border border-primary-100 rounded-xl">
+                <div className={`text-xs font-bold p-3 border rounded-xl ${
+                  importStatus.includes("Muvaffaqiyatli")
+                    ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+                    : "text-red-700 bg-red-50 border-red-100"
+                }`}>
                   {importStatus}
                 </div>
               )}
 
               <button
                 onClick={handleImportJson}
-                className="dtm-btn-primary py-3 text-sm flex items-center justify-center space-x-1.5 cursor-pointer"
+                className="w-full dtm-btn-primary py-3 text-sm flex items-center justify-center space-x-1.5 cursor-pointer font-bold"
               >
                 <Upload className="w-4 h-4" />
                 <span>JSON Importini boshlash</span>
@@ -1190,7 +1265,7 @@ export default function Admin() {
 
               <h3 className="font-display font-extrabold text-slate-900 text-lg text-center mb-1">Abituriyentni bloklash</h3>
               <p className="text-xs text-slate-500 text-center mb-5 font-semibold">
-                <span className="text-slate-900 font-bold">{selectedUserToBan.nickname}</span> ni tizimdan darhol haydash va bloklash.
+                <span className="text-slate-900 font-bold">{selectedUserToBan.nickname}</span> ni tizimdan bloklash.
               </p>
               
               <form onSubmit={handleBanUserSubmit} className="space-y-4">
@@ -1201,44 +1276,25 @@ export default function Admin() {
                     onChange={(e) => setBanDuration(e.target.value)}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm cursor-pointer"
                   >
-                    <option value="1_hour">1 Soat (1 hour)</option>
-                    <option value="12_hours">12 Soat (12 hours)</option>
-                    <option value="1_day">1 Kun (1 day)</option>
-                    <option value="7_days">7 Kun (7 days)</option>
-                    <option value="30_days">30 Kun (30 days)</option>
-                    <option value="1_year">1 Yil (1 year)</option>
-                    <option value="permanent">Umrbod (Permanent)</option>
+                    <option value="1_hour">1 Soat</option>
+                    <option value="12_hours">12 Soat</option>
+                    <option value="1_day">1 Kun</option>
+                    <option value="7_days">7 Kun</option>
+                    <option value="30_days">30 Kun</option>
+                    <option value="1_year">1 Yil</option>
+                    <option value="permanent">Umrbod</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Bloklanish Sababi (Foydalanuvchiga ko'rinadi)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Sababi</label>
                   <textarea
                     rows={3}
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
-                    placeholder="Masalan: Muloqot madaniyatini va odob-ahloq qoidalarini buzgani uchun..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-800 leading-relaxed focus:bg-white focus:border-red-400 transition-all"
+                    placeholder="Bloklash sababini yozing..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-800 leading-relaxed"
                   />
-                  
-                  {/* Quick Reason Chips */}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[
-                      "Muloqot madaniyatini buzgani uchun",
-                      "Testda g'irromlik va taqiqlangan vositalar",
-                      "Soxta to'lov cheki yuborilgani uchun",
-                      "Spam va platformaga xalaqit bergani uchun"
-                    ].map((template) => (
-                      <button
-                        key={template}
-                        type="button"
-                        onClick={() => setBanReason(template)}
-                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                      >
-                        + {template}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="flex space-x-3 pt-4">
@@ -1247,14 +1303,14 @@ export default function Admin() {
                     onClick={() => setSelectedUserToBan(null)}
                     className="flex-1 py-3 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all cursor-pointer"
                   >
-                    Bekor qilish
+                    Bekor
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 text-xs font-extrabold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center justify-center space-x-1"
+                    className="flex-1 py-3 text-xs font-extrabold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all cursor-pointer flex items-center justify-center space-x-1"
                   >
                     <Ban className="w-3.5 h-3.5" />
-                    <span>Bloklash & Otvorish</span>
+                    <span>Bloklash</span>
                   </button>
                 </div>
               </form>
@@ -1276,11 +1332,11 @@ export default function Admin() {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="max-w-xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-4 border border-white/20"
+              className="max-w-xl w-full bg-white rounded-3xl overflow-hidden shadow-2xl p-4"
             >
               <img
                 src={selectedReceipt}
-                alt="Full Receipt Check"
+                alt="To'lov cheki"
                 className="w-full max-h-[70vh] object-contain rounded-2xl mx-auto"
               />
             </motion.div>
