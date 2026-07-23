@@ -8,7 +8,8 @@ import { motion } from "motion/react";
 import { 
   ShieldAlert, Cpu, Users, Database, HelpCircle, AlertTriangle, Trash2, 
   UserX, CheckCircle, PlusCircle, Upload, Download, Edit2, FileSpreadsheet, 
-  FileText, CheckCircle2, CreditCard, Bell, Eye, X, ChevronRight, Check, Ban
+  FileText, CheckCircle2, CreditCard, Bell, Eye, X, ChevronRight, Check, Ban,
+  TrendingUp, Award, Activity, Send, MessageCircle, User as UserIcon
 } from "lucide-react";
 import { db, rtdb, handleFirestoreError, OperationType, getDocs, setDoc, deleteDoc, set } from "../lib/firebase";
 import { collection, doc, query, orderBy } from "firebase/firestore";
@@ -16,7 +17,7 @@ import { ref, onValue } from "firebase/database";
 import { Question, User, Purchase } from "../types";
 
 export default function Admin() {
-  const [activeSubTab, setActiveSubTab] = useState<"dashboard" | "users" | "purchases" | "notifications" | "questions" | "import">("dashboard");
+  const [activeSubTab, setActiveSubTab] = useState<"dashboard" | "summary" | "users" | "purchases" | "notifications" | "messages" | "questions" | "import">("dashboard");
   const [loading, setLoading] = useState(true);
 
   // Stats State
@@ -27,7 +28,9 @@ export default function Admin() {
     completedSessionsCount: 0,
     bannedUsersCount: 0,
     questionsDatabaseCount: 0,
-    pendingPurchasesCount: 0
+    pendingPurchasesCount: 0,
+    totalFollowers: 0,
+    totalSubscriptions: 0
   });
 
   // Database lists
@@ -35,6 +38,7 @@ export default function Admin() {
   const [questionsList, setQuestionsList] = useState<Question[]>([]);
   const [bannedUids, setBannedUids] = useState<string[]>([]);
   const [purchasesList, setPurchasesList] = useState<Purchase[]>([]);
+  const [messagesHistory, setMessagesHistory] = useState<any[]>([]);
 
   // Ban Duration Modal State
   const [selectedUserToBan, setSelectedUserToBan] = useState<User | null>(null);
@@ -49,6 +53,14 @@ export default function Admin() {
   const [notifMessage, setNotifMessage] = useState("");
   const [notifTarget, setNotifTarget] = useState("all");
   const [sendingNotif, setSendingNotif] = useState(false);
+
+  // Direct Message State
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [selectedAdminUser, setSelectedAdminUser] = useState<User | null>(null);
+  const [messageTitle, setMessageTitle] = useState("");
+  const [messageContent, setMessageContent] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Add Question Form State
   const [newQuestion, setNewQuestion] = useState({
@@ -71,16 +83,13 @@ export default function Admin() {
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch server stats
       const statsRes = await fetch("/api/admin/stats");
       const statsData = statsRes.ok ? await statsRes.json() : {};
 
-      // 2. Fetch banned users from server
       const bannedRes = await fetch("/api/admin/banned-users");
       const bannedData = bannedRes.ok ? await bannedRes.json() : { banned: [] };
       setBannedUids(bannedData.banned);
 
-      // 3. Fetch users from Firestore and local server database
       let uList: User[] = [];
       try {
         const usersSnap = await getDocs(collection(db, "users"));
@@ -102,7 +111,6 @@ export default function Admin() {
         console.error("Failed to fetch server-side users list:", err);
       }
 
-      // Merge Firestore users and server users by uid to be 100% complete
       const mergedUsersMap: Record<string, User> = {};
       serverUsers.forEach((u) => {
         if (u && u.uid) {
@@ -118,7 +126,6 @@ export default function Admin() {
       const finalUsersList = Object.values(mergedUsersMap);
       setUsersList(finalUsersList);
 
-      // 4. Fetch purchases from Firestore
       const purchasesQuery = query(collection(db, "purchases"), orderBy("createdAt", "desc"));
       const purchasesSnap = await getDocs(purchasesQuery);
       const pList: Purchase[] = [];
@@ -128,6 +135,8 @@ export default function Admin() {
       setPurchasesList(pList);
 
       const pendingCount = pList.filter(p => p.status === "Tekshirilyapti").length;
+      const approvedCount = pList.filter(p => p.status === "Tastiqlandi").length;
+      const followerStats = finalUsersList.reduce((acc, u) => acc + (u.referralCount || 0), 0);
 
       setStats({
         totalUsers: finalUsersList.length,
@@ -136,7 +145,9 @@ export default function Admin() {
         completedSessionsCount: statsData.completedSessionsCount || 0,
         bannedUsersCount: bannedData.banned.length,
         questionsDatabaseCount: statsData.questionsDatabaseCount || 17,
-        pendingPurchasesCount: pendingCount
+        pendingPurchasesCount: pendingCount,
+        totalFollowers: followerStats,
+        totalSubscriptions: approvedCount
       });
 
     } catch (err) {
@@ -153,7 +164,6 @@ export default function Admin() {
     let unsubPurchases: (() => void) | null = null;
 
     try {
-      // 1. Live listener for RTDB users
       const usersRef = ref(rtdb, "users");
       unsubUsers = onValue(usersRef, (snapshot) => {
         if (snapshot.exists()) {
@@ -194,7 +204,6 @@ export default function Admin() {
         }
       });
 
-      // 2. Live listener for RTDB purchases
       const purchasesRef = ref(rtdb, "purchases");
       unsubPurchases = onValue(purchasesRef, (snapshot) => {
         if (snapshot.exists()) {
@@ -229,7 +238,7 @@ export default function Admin() {
     };
   }, []);
 
-  // Submit Ban with Selected Duration & Reason
+  // Ban User
   const handleBanUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserToBan) return;
@@ -251,7 +260,6 @@ export default function Admin() {
       if (res.ok) {
         const data = await res.json();
         
-        // Sync duration-based ban timestamp & reason in Firestore & RTDB user doc
         const userDocRef = doc(db, "users", selectedUserToBan.uid);
         await setDoc(userDocRef, { 
           bannedUntil: data.bannedUntil,
@@ -272,7 +280,7 @@ export default function Admin() {
     }
   };
 
-  // Direct Unban Action
+  // Unban User
   const handleUnbanUser = async (uid: string) => {
     try {
       const res = await fetch("/api/admin/ban", {
@@ -282,7 +290,6 @@ export default function Admin() {
       });
 
       if (res.ok) {
-        // Sync unban in Firestore & RTDB
         const userDocRef = doc(db, "users", uid);
         await setDoc(userDocRef, { 
           bannedUntil: null,
@@ -302,12 +309,11 @@ export default function Admin() {
     }
   };
 
-  // Delete user from Firestore and server database
+  // Delete User
   const handleDeleteUser = async (uid: string) => {
     if (!confirm("Haqiqatdan ham ushbu foydalanuvchini butunlay o'chirib yubormoqchimisiz?")) return;
     try {
       await deleteDoc(doc(db, "users", uid));
-      // If purchase request exists, clean it up too
       try {
         await deleteDoc(doc(db, "purchases", uid));
       } catch (_) {}
@@ -316,7 +322,6 @@ export default function Admin() {
         await set(ref(rtdb, `users/${uid}`), null);
       } catch (_) {}
 
-      // Delete from server database as well
       try {
         await fetch(`/api/admin/users/${uid}`, { method: "DELETE" });
       } catch (err) {
@@ -330,7 +335,7 @@ export default function Admin() {
     }
   };
 
-  // Approve Premium Purchase with automatic plan duration
+  // Approve Purchase
   const handleApprovePurchase = async (purchase: Purchase) => {
     try {
       const now = new Date();
@@ -340,7 +345,6 @@ export default function Admin() {
 
       const premiumUntilDate = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
 
-      // 1. Update purchase state in Firestore & RTDB
       await setDoc(doc(db, "purchases", purchase.uid), {
         status: "Tastiqlandi",
         updatedAt: now.toISOString()
@@ -350,7 +354,6 @@ export default function Admin() {
         await set(ref(rtdb, `purchases/${purchase.uid}/status`), "Tastiqlandi");
       } catch (_) {}
 
-      // 2. Update user premium states in Firestore & RTDB
       const userUpdateFields = {
         premium: true,
         subscriptionStatus: "Tastiqlandi",
@@ -364,7 +367,6 @@ export default function Admin() {
         await set(ref(rtdb, `users/${purchase.uid}/premiumUntil`), premiumUntilDate.toISOString());
       } catch (_) {}
 
-      // Sync with server database
       try {
         await fetch("/api/users/sync", {
           method: "POST",
@@ -375,7 +377,6 @@ export default function Admin() {
         console.warn("Failed to sync premium state to server:", err);
       }
 
-      // 3. Dispatch congratulations Notification to the student in Firestore & RTDB
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
       const notifObj = {
         id: notifId,
@@ -398,11 +399,10 @@ export default function Admin() {
     }
   };
 
-  // Reject Premium Purchase
+  // Reject Purchase
   const handleRejectPurchase = async (purchase: Purchase) => {
     try {
       const now = new Date();
-      // 1. Update purchase state in Firestore & RTDB
       await setDoc(doc(db, "purchases", purchase.uid), {
         status: "Tekshirilmadi",
         updatedAt: now.toISOString()
@@ -412,7 +412,6 @@ export default function Admin() {
         await set(ref(rtdb, `purchases/${purchase.uid}/status`), "Tekshirilmadi");
       } catch (_) {}
 
-      // 2. Update user subscriptionStatus in Firestore & RTDB
       const userUpdateFields = {
         subscriptionStatus: "Tekshirilmadi"
       };
@@ -422,7 +421,6 @@ export default function Admin() {
         await set(ref(rtdb, `users/${purchase.uid}/subscriptionStatus`), "Tekshirilmadi");
       } catch (_) {}
 
-      // Sync with server database
       try {
         await fetch("/api/users/sync", {
           method: "POST",
@@ -433,7 +431,6 @@ export default function Admin() {
         console.warn("Failed to sync rejection state to server:", err);
       }
 
-      // 3. Dispatch correction request Notification to the student
       const notifId = `notif_${purchase.uid}_${Date.now()}`;
       const notifObj = {
         id: notifId,
@@ -456,7 +453,7 @@ export default function Admin() {
     }
   };
 
-  // Send broadcast announcement or personal warning alert
+  // Send Broadcast Notification
   const handleSendNotification = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notifTitle.trim() || !notifMessage.trim()) {
@@ -491,7 +488,85 @@ export default function Admin() {
     }
   };
 
-  // Create new question manually
+  // Send Direct Message
+  const handleSendDirectMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAdminUser || !messageTitle.trim() || !messageContent.trim()) {
+      alert("Iltimos, barcha maydonlarni to'ldiring.");
+      return;
+    }
+
+    setSendingMessage(true);
+    try {
+      const messageId = `msg_${selectedAdminUser.uid}_${Date.now()}`;
+      const messageObj = {
+        id: messageId,
+        fromAdmin: true,
+        fromAdminName: "Admin",
+        toUserId: selectedAdminUser.uid,
+        toUserName: selectedAdminUser.nickname,
+        title: messageTitle.trim(),
+        content: messageContent.trim(),
+        createdAt: new Date().toISOString(),
+        read: false,
+        type: "admin_message"
+      };
+
+      await setDoc(doc(db, "messages", messageId), messageObj);
+
+      try {
+        await set(ref(rtdb, `messages/${messageId}`), messageObj);
+      } catch (_) {}
+
+      const notifId = `notif_${selectedAdminUser.uid}_${Date.now()}`;
+      const notifObj = {
+        id: notifId,
+        userId: selectedAdminUser.uid,
+        title: `📩 Admin xabarnomasi: ${messageTitle}`,
+        message: messageContent,
+        createdAt: new Date().toISOString(),
+        type: "admin_message",
+        relatedMessageId: messageId
+      };
+
+      await setDoc(doc(db, "notifications", notifId), notifObj);
+      try {
+        await set(ref(rtdb, `notifications/${notifId}`), notifObj);
+      } catch (_) {}
+
+      alert(`${selectedAdminUser.nickname} ga xabar muvaffaqiyatli yuborildi!`);
+      setMessageTitle("");
+      setMessageContent("");
+      setSelectedAdminUser(null);
+      setShowMessageModal(false);
+      loadAdminData();
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      alert("Xabarni yuborishda xatolik yuz berdi.");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  // Load Messages History
+  const loadMessagesHistory = async () => {
+    setLoadingMessages(true);
+    try {
+      const messagesQuery = query(collection(db, "messages"), orderBy("createdAt", "desc"));
+      const messagesSnap = await getDocs(messagesQuery);
+      const mList: any[] = [];
+      messagesSnap.forEach((doc) => {
+        mList.push({ id: doc.id, ...doc.data() });
+      });
+      setMessagesHistory(mList);
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  // Add Question
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -520,7 +595,7 @@ export default function Admin() {
     }
   };
 
-  // Import bulk JSON questions
+  // Import JSON
   const handleImportJson = async () => {
     if (!bulkJsonInput.trim()) return;
     try {
@@ -541,10 +616,9 @@ export default function Admin() {
     }
   };
 
-  // Export Results to Excel/CSV format
+  // Export CSV
   const handleExportCSV = async () => {
     try {
-      // Query results
       const resSnap = await getDocs(collection(db, "results"));
       let csvContent = "data:text/csv;charset=utf-8,";
       csvContent += "Ism,Yo'nalish,Ball,To'g'ri,Xato,Bo'sh,Sana\n";
@@ -581,7 +655,7 @@ export default function Admin() {
               <span>Admin Boshqaruv Paneli</span>
             </h1>
             <p className="text-slate-500 text-sm mt-1.5 font-semibold">
-              Obuna tasdiqlash (Sotip olganlar), abituriyentlarni bloklash, xabarnomalar broadcastingi hamda savollar bazasini boshqarish.
+              Obuna tasdiqlash, abituriyentlarni boshqarish, xabarlar yuborish va savollar bazasini to'liq boshqarish paneli.
             </p>
           </div>
 
@@ -600,9 +674,11 @@ export default function Admin() {
         <div className="flex gap-2 border-b border-slate-100 pb-1 overflow-x-auto scrollbar-none">
           {[
             { id: "dashboard", label: "Statistika", icon: Cpu },
+            { id: "summary", label: "Hozirgi Holat", icon: TrendingUp },
             { id: "users", label: "Abituriyentlar", icon: Users },
-            { id: "purchases", label: `Sotip olganlar ${stats.pendingPurchasesCount > 0 ? `(${stats.pendingPurchasesCount})` : ''}`, icon: CreditCard },
+            { id: "purchases", label: `To'lovlar ${stats.pendingPurchasesCount > 0 ? `(${stats.pendingPurchasesCount})` : ''}`, icon: CreditCard },
             { id: "notifications", label: "Xabar yuborish", icon: Bell },
+            { id: "messages", label: "Admin Xabarlari", icon: MessageCircle },
             { id: "questions", label: "Savol Qo'shish", icon: Database },
             { id: "import", label: "Bulk Import", icon: Upload }
           ].map((tab) => {
@@ -611,7 +687,12 @@ export default function Admin() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
+                onClick={() => {
+                  setActiveSubTab(tab.id as any);
+                  if (tab.id === "messages") {
+                    loadMessagesHistory();
+                  }
+                }}
                 className={`flex items-center space-x-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer whitespace-nowrap ${
                   active
                     ? "bg-primary-600 text-white border-primary-600 shadow-xs"
@@ -671,19 +752,140 @@ export default function Admin() {
               </div>
             </div>
 
+            {/* Extended Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase">Do'stlik Takliflari</div>
+                  <Award className="w-5 h-5 text-purple-500" />
+                </div>
+                <div className="text-3xl font-black text-slate-800">{stats.totalFollowers}</div>
+                <p className="text-[11px] text-slate-500 font-semibold mt-2">Faol do'stlik takliflari</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase">Premium Obunalar</div>
+                  <TrendingUp className="w-5 h-5 text-green-500" />
+                </div>
+                <div className="text-3xl font-black text-slate-800">{stats.totalSubscriptions}</div>
+                <p className="text-[11px] text-slate-500 font-semibold mt-2">Faollashtirilgan obunalar</p>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase">Faol Sessiyalar</div>
+                  <Activity className="w-5 h-5 text-blue-500" />
+                </div>
+                <div className="text-3xl font-black text-slate-800">{stats.activeSessionsCount}</div>
+                <p className="text-[11px] text-slate-500 font-semibold mt-2">Hozirgi vaqtda faol</p>
+              </div>
+            </div>
+
             {/* Live active sessions */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
               <h3 className="font-display font-extrabold text-slate-800 text-lg mb-4">
                 Tizim Monitoringi
               </h3>
-              <p className="text-sm text-slate-500 leading-relaxed max-w-xl font-semibold">
-                Hozirda server xotirasida faol bo'lgan imtihon sessiyalari soni: <span className="font-bold text-blue-600">{stats.activeSessionsCount} ta</span>. Yakunlangan imtihonlar soni: <span className="font-bold text-emerald-600">{stats.completedSessionsCount} ta</span>.
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">FAOL IMTIHON SESSIYALARI</p>
+                  <p className="text-2xl font-black text-blue-600">{stats.activeSessionsCount} ta</p>
+                </div>
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">YAKUNLANGAN IMTIHONLAR</p>
+                  <p className="text-2xl font-black text-emerald-600">{stats.completedSessionsCount} ta</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* 2. Users management Subtab */}
+        {/* 2. Summary Tab - Hozirgi Holat */}
+        {activeSubTab === "summary" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Users Summary */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  <span>Abituriyentlar Hozirgi Holati</span>
+                </h3>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Jami roʻyxatdan oʻtgan</span>
+                    <span className="text-lg font-black text-slate-800">{stats.totalUsers}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Premium faollashtirilgan</span>
+                    <span className="text-lg font-black text-emerald-600">{stats.totalSubscriptions}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Bloklanganlar</span>
+                    <span className="text-lg font-black text-red-600">{stats.bannedUsersCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Premium bo'lmaganlar</span>
+                    <span className="text-lg font-black text-slate-600">{stats.totalUsers - stats.totalSubscriptions}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tests Summary */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
+                  <Activity className="w-5 h-5 text-green-600" />
+                  <span>Imtihon Faoliyati</span>
+                </h3>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Boshlangan imtihonlar</span>
+                    <span className="text-lg font-black text-blue-600">{stats.totalTestsStarted}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Yakunlangan imtihonlar</span>
+                    <span className="text-lg font-black text-emerald-600">{stats.completedSessionsCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Savol bazasida</span>
+                    <span className="text-lg font-black text-purple-600">{stats.questionsDatabaseCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm font-semibold text-slate-600">Faol sessiyalar</span>
+                    <span className="text-lg font-black text-amber-600">{stats.activeSessionsCount}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Purchases Summary */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
+                <CreditCard className="w-5 h-5 text-amber-600" />
+                <span>To'lov va Obuna Holati</span>
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">Tekshirilyapti</p>
+                  <p className="text-3xl font-black text-amber-600">{stats.pendingPurchasesCount}</p>
+                </div>
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">Tasdiqlandi</p>
+                  <p className="text-3xl font-black text-emerald-600">{stats.totalSubscriptions}</p>
+                </div>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                  <p className="text-xs font-bold text-slate-500 uppercase mb-2">Do'stlik Takliflari</p>
+                  <p className="text-3xl font-black text-slate-600">{stats.totalFollowers}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Users management Subtab */}
         {activeSubTab === "users" && (
           <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -709,7 +911,7 @@ export default function Admin() {
                     const role = typeof user.role === "string" ? user.role : "student";
                     const score = typeof user.score === "number" ? user.score : 0;
                     const testsSolved = typeof user.testsSolved === "number" ? user.testsSolved : 0;
-                    const promoCode = typeof user.promoCode === "string" ? user.promoCode : "";
+                    const referralCount = typeof user.referralCount === "number" ? user.referralCount : 0;
                     const subscriptionStatus = typeof user.subscriptionStatus === "string" ? user.subscriptionStatus : "none";
                     const subscriptionPlan = typeof user.subscriptionPlan === "string" ? user.subscriptionPlan : "haftalik";
 
@@ -736,7 +938,7 @@ export default function Admin() {
                             )}
                             <div>
                               <div className="font-bold text-slate-800">{nickname}</div>
-                              <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Promo: {promoCode || "Mavjud emas"}</div>
+                              <div className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Do'stlar: {referralCount}</div>
                             </div>
                           </div>
                         </td>
@@ -817,12 +1019,12 @@ export default function Admin() {
           </div>
         )}
 
-        {/* 3. Purchases Subtab (SOTIP OLGANLAR) */}
+        {/* 4. Purchases Subtab */}
         {activeSubTab === "purchases" && (
           <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
             <h3 className="font-display font-extrabold text-slate-800 text-lg p-6 border-b border-slate-100 flex items-center space-x-2">
               <CreditCard className="w-5 h-5 text-primary-500" />
-              <span>Premium Obuna Sotib Olish So'rovlari (Sotib olganlar)</span>
+              <span>Premium Obuna Sotib Olish So'rovlari</span>
             </h3>
 
             {purchasesList.length === 0 ? (
@@ -922,13 +1124,13 @@ export default function Admin() {
           </div>
         )}
 
-        {/* 4. Notifications Broadcast Subtab */}
+        {/* 5. Notifications Broadcast Subtab */}
         {activeSubTab === "notifications" && (
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs max-w-2xl mx-auto space-y-6">
             <div>
               <h3 className="font-display font-extrabold text-slate-800 text-lg">Habarnoma Yuborish (Broadcasting)</h3>
               <p className="text-sm text-slate-500 mt-1">
-                Barcha foydalanuvchilarga umumiy e'lon yuborish yoki aniq bir abituriyentga ogohlantirish yuborish maydoni.
+                Barcha foydalanuvchilarga umumiy e'lon yoki aniq bir abituriyentga ogohlantirish yuborish.
               </p>
             </div>
 
@@ -985,7 +1187,74 @@ export default function Admin() {
           </div>
         )}
 
-        {/* 5. Add question Subtab */}
+        {/* 6. Admin Messages Tab */}
+        {activeSubTab === "messages" && (
+          <div className="space-y-6">
+            {/* Send Message Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowMessageModal(true)}
+                className="dtm-btn-primary py-2.5 px-4 text-xs font-semibold flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>Foydalanuvchiga Xabar Yuborish</span>
+              </button>
+            </div>
+
+            {/* Messages History */}
+            <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
+              <div className="p-6 border-b border-slate-100">
+                <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
+                  <MessageCircle className="w-5 h-5 text-primary-500" />
+                  <span>Admin Xabarlari Tarixi</span>
+                </h3>
+              </div>
+
+              {loadingMessages ? (
+                <div className="py-12 text-center">
+                  <div className="w-8 h-8 border-3 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                </div>
+              ) : messagesHistory.length === 0 ? (
+                <div className="py-16 text-center text-slate-400">
+                  <MessageCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+                  <p className="font-semibold">Hozircha xabarlar mavjud emas</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {messagesHistory.map((msg) => (
+                    <div key={msg.id} className="p-6 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                            <UserIcon className="w-4 h-4 text-primary-500" />
+                            <span>{msg.toUserName}</span>
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-semibold mt-1">
+                            {new Date(msg.createdAt).toLocaleString('uz-UZ')}
+                          </p>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] border font-bold ${
+                          msg.read
+                            ? "bg-slate-50 text-slate-500 border-slate-100"
+                            : "bg-blue-50 text-blue-700 border-blue-100 animate-pulse"
+                        }`}>
+                          {msg.read ? "O'qildi" : "O'qilmadi"}
+                        </span>
+                      </div>
+                      
+                      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                        <p className="font-bold text-slate-800 text-sm mb-2">{msg.title}</p>
+                        <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 7. Add question Subtab */}
         {activeSubTab === "questions" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
@@ -1115,7 +1384,7 @@ export default function Admin() {
               </form>
             </div>
 
-            {/* Right Static info on Question Layout structure */}
+            {/* Right Static info */}
             <div className="lg:col-span-6 space-y-6">
               <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-4">
                 <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
@@ -1123,15 +1392,15 @@ export default function Admin() {
                   <span>DTM Savollar Formati haqida</span>
                 </h3>
                 <p className="text-slate-500 text-xs font-semibold leading-relaxed">
-                  DTM MASTER platformasi to'liq 5 ta fandan iborat 90 ta test savollaridan tashkil topgan kompleks imtihonlarni taqdim etadi. Ushbu testlar Fisher-Yates algoritmi bo'yicha dinamik ravishda quyidagi fojiaviy tarqatish bo'yicha tuziladi:
+                  DTM MASTER platformasi to'liq 5 ta fandan iborat 90 ta test savollaridan tashkil topgan kompleks imtihonlarni taqdim etadi.
                 </p>
                 
                 <div className="space-y-2 font-semibold text-xs text-slate-600 border-t border-slate-100 pt-4">
-                  <p className="flex justify-between"><span>📚 Matematika (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol (1.1 ball)</span></p>
-                  <p className="flex justify-between"><span>📚 O'zbekiston tarixi (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol (1.1 ball)</span></p>
-                  <p className="flex justify-between"><span>📚 Ona tili (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol (1.1 ball)</span></p>
-                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 1 (Matematika/Fizika):</span> <span className="font-mono font-bold text-slate-800">30 ta savol (3.1 ball)</span></p>
-                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 2 (Fizika/Chet tili):</span> <span className="font-mono font-bold text-slate-800">30 ta savol (2.1 ball)</span></p>
+                  <p className="flex justify-between"><span>📚 Matematika (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol</span></p>
+                  <p className="flex justify-between"><span>📚 O'zbekiston tarixi (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol</span></p>
+                  <p className="flex justify-between"><span>📚 Ona tili (Majburiy):</span> <span className="font-mono font-bold text-slate-800">10 ta savol</span></p>
+                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 1:</span> <span className="font-mono font-bold text-slate-800">30 ta savol</span></p>
+                  <p className="flex justify-between"><span>🔥 Mutaxassislik fani 2:</span> <span className="font-mono font-bold text-slate-800">30 ta savol</span></p>
                 </div>
               </div>
             </div>
@@ -1139,13 +1408,13 @@ export default function Admin() {
           </div>
         )}
 
-        {/* 6. Bulk JSON Import Subtab */}
+        {/* 8. Bulk JSON Import Subtab */}
         {activeSubTab === "import" && (
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
             <div>
               <h3 className="font-display font-extrabold text-slate-800 text-lg">JSON orqali savollar kiritish</h3>
               <p className="text-sm text-slate-500 mt-1">
-                Quyidagi maydonga savollarning to'g'ri JSON massivini joylashtiring va "Importni boshlash" tugmasini bosing.
+                Quyidagi maydonga savollarning to'g'ri JSON massivini joylashtiring.
               </p>
             </div>
 
@@ -1154,7 +1423,7 @@ export default function Admin() {
                 rows={10}
                 value={bulkJsonInput}
                 onChange={(e) => setBulkJsonInput(e.target.value)}
-                placeholder={`[\n  {\n    "question": "O'zbekiston poytaxti qaysi?",\n    "A": "Toshkent",\n    "B": "Samarqand",\n    "C": "Buxoro",\n    "D": "Xiva",\n    "correctAnswer": "A",\n    "subject": "History of Uzbekistan"\n  }\n]`}
+                placeholder={`[\n  {\n    "question": "Savol?",\n    "A": "Javob A",\n    "B": "Javob B",\n    "C": "Javob C",\n    "D": "Javob D",\n    "correctAnswer": "A",\n    "subject": "Mathematics"\n  }\n]`}
                 className="w-full p-4 bg-slate-900 text-slate-100 font-mono text-xs rounded-2xl outline-none"
               />
 
@@ -1189,7 +1458,7 @@ export default function Admin() {
 
               <h3 className="font-display font-extrabold text-slate-900 text-lg text-center mb-1">Abituriyentni bloklash</h3>
               <p className="text-xs text-slate-500 text-center mb-5 font-semibold">
-                <span className="text-slate-900 font-bold">{selectedUserToBan.nickname}</span> ni tizimdan darhol haydash va bloklash.
+                <span className="text-slate-900 font-bold">{selectedUserToBan.nickname}</span> ni tizimdan darhol haydash.
               </p>
               
               <form onSubmit={handleBanUserSubmit} className="space-y-4">
@@ -1200,44 +1469,25 @@ export default function Admin() {
                     onChange={(e) => setBanDuration(e.target.value)}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm cursor-pointer"
                   >
-                    <option value="1_hour">1 Soat (1 hour)</option>
-                    <option value="12_hours">12 Soat (12 hours)</option>
-                    <option value="1_day">1 Kun (1 day)</option>
-                    <option value="7_days">7 Kun (7 days)</option>
-                    <option value="30_days">30 Kun (30 days)</option>
-                    <option value="1_year">1 Yil (1 year)</option>
-                    <option value="permanent">Umrbod (Permanent)</option>
+                    <option value="1_hour">1 Soat</option>
+                    <option value="12_hours">12 Soat</option>
+                    <option value="1_day">1 Kun</option>
+                    <option value="7_days">7 Kun</option>
+                    <option value="30_days">30 Kun</option>
+                    <option value="1_year">1 Yil</option>
+                    <option value="permanent">Umrbod</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Bloklanish Sababi (Foydalanuvchiga ko'rinadi)</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Bloklanish Sababi</label>
                   <textarea
                     rows={3}
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
-                    placeholder="Masalan: Muloqot madaniyatini va odob-ahloq qoidalarini buzgani uchun..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-800 leading-relaxed focus:bg-white focus:border-red-400 transition-all"
+                    placeholder="Sababi yozing..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-800 leading-relaxed"
                   />
-                  
-                  {/* Quick Reason Chips */}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[
-                      "Muloqot madaniyatini buzgani uchun",
-                      "Testda g'irromlik va taqiqlangan vositalar",
-                      "Soxta to'lov cheki yuborilgani uchun",
-                      "Spam va platformaga xalaqit bergani uchun"
-                    ].map((template) => (
-                      <button
-                        key={template}
-                        type="button"
-                        onClick={() => setBanReason(template)}
-                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                      >
-                        + {template}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="flex space-x-3 pt-4">
@@ -1253,7 +1503,101 @@ export default function Admin() {
                     className="flex-1 py-3 text-xs font-extrabold bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all shadow-md shadow-red-500/20 cursor-pointer flex items-center justify-center space-x-1"
                   >
                     <Ban className="w-3.5 h-3.5" />
-                    <span>Bloklash & Otvorish</span>
+                    <span>Bloklash</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Send Direct Message Modal */}
+        {showMessageModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 w-full max-w-md shadow-xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-display font-extrabold text-slate-900 text-lg">
+                  Foydalanuvchiga Xabar
+                </h3>
+                <button
+                  onClick={() => setShowMessageModal(false)}
+                  className="p-2 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSendDirectMessage} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">
+                    Foydalanuvchini tanlang <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    value={selectedAdminUser?.uid || ""}
+                    onChange={(e) => {
+                      const uid = e.target.value;
+                      const user = usersList.find(u => u.uid === uid);
+                      setSelectedAdminUser(user || null);
+                    }}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm cursor-pointer"
+                  >
+                    <option value="">-- Tanlang --</option>
+                    {usersList.map((u) => (
+                      <option key={u.uid} value={u.uid}>
+                        {u.nickname} ({u.email || "Email yo'q"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">
+                    Mavzu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Xabar sarlavhasi..."
+                    value={messageTitle}
+                    onChange={(e) => setMessageTitle(e.target.value)}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">
+                    Xabar Matni <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={5}
+                    placeholder="Xabar yozing..."
+                    value={messageContent}
+                    onChange={(e) => setMessageContent(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm leading-relaxed resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowMessageModal(false)}
+                    className="flex-1 py-3 text-xs font-bold border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sendingMessage}
+                    className="flex-1 py-3 text-xs font-extrabold bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-md shadow-primary-500/20 cursor-pointer flex items-center justify-center space-x-1 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{sendingMessage ? "Yuborilmoqda..." : "Xabar yuborish"}</span>
                   </button>
                 </div>
               </form>
