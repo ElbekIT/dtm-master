@@ -68,8 +68,6 @@ export default function App() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpMessage, setHelpMessage] = useState("");
   const [helpSending, setHelpSending] = useState(false);
-  const [helpCooldownRemaining, setHelpCooldownRemaining] = useState(0);
-  const HELP_COOLDOWN_MS = 50000;
 
   // Tab switch handler that clears notification badge when viewing notifications
   const handleSelectTab = (tab: string) => {
@@ -98,22 +96,6 @@ export default function App() {
     setViewedUserProfile(null);
     setCurrentTab("users");
   };
-
-  const getHelpCooldownRemaining = () => {
-    if (!currentUser?.uid) return 0;
-    const lastSent = Number(localStorage.getItem(`dtm_help_last_sent_${currentUser.uid}`) || 0);
-    const elapsed = Date.now() - lastSent;
-    return elapsed >= HELP_COOLDOWN_MS ? 0 : Math.ceil((HELP_COOLDOWN_MS - elapsed) / 1000);
-  };
-
-  useEffect(() => {
-    if (!showHelpModal) return;
-    setHelpCooldownRemaining(getHelpCooldownRemaining());
-    const interval = setInterval(() => {
-      setHelpCooldownRemaining(getHelpCooldownRemaining());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showHelpModal, currentUser?.uid]);
 
   // Realtime notification listener for unread badge count
   useEffect(() => {
@@ -278,12 +260,6 @@ export default function App() {
       return;
     }
 
-    const cooldown = getHelpCooldownRemaining();
-    if (cooldown > 0) {
-      alert(`Xabar yuborish uchun ${cooldown} soniya kuting.`);
-      return;
-    }
-
     setHelpSending(true);
     try {
       const messageId = `help_${currentUser.uid}_${Date.now()}`;
@@ -298,8 +274,10 @@ export default function App() {
         type: "help_request"
       };
 
+      // Save to Firestore
       await setDoc(doc(db, "help_requests", messageId), messageObj);
 
+      // Send notification to admin
       const notifId = `notif_admin_help_${Date.now()}`;
       const notifObj = {
         id: notifId,
@@ -312,9 +290,6 @@ export default function App() {
       };
 
       await setDoc(doc(db, "notifications", notifId), notifObj);
-
-      localStorage.setItem(`dtm_help_last_sent_${currentUser.uid}`, Date.now().toString());
-      setHelpCooldownRemaining(getHelpCooldownRemaining());
 
       alert("✅ Xabarnoma Admin ga yuborildi. Tez orada javob olasiz!");
       setHelpMessage("");
@@ -697,10 +672,6 @@ export default function App() {
                   onChange={(e) => setHelpMessage(e.target.value)}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-semibold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-2">
-                  Har bir foydalanuvchi admin ga keyingi xabarni kamida 50 soniyadan keyin yuborishi mumkin.
-                  {helpCooldownRemaining > 0 && ` Keyingi xabarni ${helpCooldownRemaining} soniyadan keyin yuboring.`}
-                </p>
               </div>
 
               <div className="flex gap-3 pt-4">

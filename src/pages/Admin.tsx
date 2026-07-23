@@ -18,7 +18,7 @@ import { ref, onValue } from "firebase/database";
 import { Question, User, Purchase } from "../types";
 
 export default function Admin() {
-  const [activeSubTab, setActiveSubTab] = useState<"dashboard" | "summary" | "users" | "purchases" | "help_requests" | "notifications" | "messages" | "questions" | "import">("dashboard");
+  const [activeSubTab, setActiveSubTab] = useState<"dashboard" | "summary" | "users" | "purchases" | "notifications" | "messages" | "questions" | "import">("dashboard");
   const [loading, setLoading] = useState(true);
 
   // Stats State
@@ -718,7 +718,6 @@ export default function Admin() {
             { id: "summary", label: "📈 Holat", icon: TrendingUp },
             { id: "users", label: "👥 Abituriyentlar", icon: Users },
             { id: "purchases", label: `💳 To'lovlar${stats.pendingPurchasesCount > 0 ? ` (${stats.pendingPurchasesCount})` : ''}`, icon: CreditCard },
-            { id: "help_requests", label: "🆘 Yordam So'rovlari", icon: HelpCircle },
             { id: "notifications", label: "📢 E'lonlar", icon: Bell },
             { id: "messages", label: "💬 Xabarlar", icon: MessageCircle },
             { id: "questions", label: "❓ Savollar", icon: Database },
@@ -748,56 +747,6 @@ export default function Admin() {
             );
           })}
         </div>
-
-        {activeSubTab === "help_requests" && (
-          <div className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xs max-w-4xl mx-auto">
-              <h3 className="font-display font-extrabold text-slate-800 text-lg mb-4">Yordam So'rovlari</h3>
-              <p className="text-slate-500 text-sm mb-6">Foydalanuvchilardan kelgan yordam so'rovlari shu yerda ko'rsatiladi. Kimdan kelgani, emaili va xabar matni mavjud.</p>
-
-              {loadingHelpRequests ? (
-                <div className="py-12 text-center">
-                  <div className="w-8 h-8 border-3 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                </div>
-              ) : helpRequests.length === 0 ? (
-                <div className="py-16 text-center text-slate-400">
-                  <HelpCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-                  <p className="font-semibold">Hozircha yordam so'rovlari mavjud emas.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {helpRequests.map((req) => (
-                    <div key={req.id} className="bg-slate-50 border border-slate-200 rounded-3xl p-6">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
-                        <div>
-                          <p className="font-bold text-slate-900 text-sm">{req.fromUserName || 'Noma'lum foydalanuvchi'}</p>
-                          <p className="text-[11px] text-slate-500">{req.fromUserEmail || 'Email mavjud emas'}</p>
-                          <p className="text-[11px] text-slate-500 mt-1">Foydalanuvchi ID: {req.fromUserId || 'noma'lum'}</p>
-                        </div>
-                        <div className="text-right text-[11px] font-semibold text-slate-500">
-                          <p>{req.createdAt ? new Date(req.createdAt).toLocaleString('uz-UZ') : 'sana yo‘q'}</p>
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black mt-2 ${req.status === 'handled' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {req.status === 'handled' ? 'Ko‘rilgan' : 'Yangi'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="bg-white rounded-3xl p-4 border border-slate-200 mb-4">
-                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Xabar</h4>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{req.message}</p>
-                      </div>
-                      <button
-                        onClick={() => markHelpRequestHandled(req)}
-                        className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl text-xs font-bold transition-all"
-                      >
-                        {req.status === 'handled' ? 'Ko‘rilgan deb belgilandi' : 'Ko‘rilgan deb belgilash'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* 1. DASHBOARD TAB */}
         {activeSubTab === "dashboard" && (
