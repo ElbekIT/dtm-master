@@ -40,8 +40,6 @@ export default function Admin() {
   const [bannedUids, setBannedUids] = useState<string[]>([]);
   const [purchasesList, setPurchasesList] = useState<Purchase[]>([]);
   const [messagesHistory, setMessagesHistory] = useState<any[]>([]);
-  const [helpRequests, setHelpRequests] = useState<any[]>([]);
-  const [loadingHelpRequests, setLoadingHelpRequests] = useState(false);
 
   // Ban Duration Modal State
   const [selectedUserToBan, setSelectedUserToBan] = useState<User | null>(null);
@@ -581,34 +579,6 @@ export default function Admin() {
     }
   };
 
-  const loadHelpRequests = async () => {
-    setLoadingHelpRequests(true);
-    try {
-      const helpSnap = await getDocs(collection(db, "help_requests"));
-      const hList: any[] = [];
-      helpSnap.forEach((doc) => {
-        hList.push({ id: doc.id, ...doc.data() });
-      });
-      hList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setHelpRequests(hList);
-    } catch (err) {
-      console.error("Failed to load help requests:", err);
-    } finally {
-      setLoadingHelpRequests(false);
-    }
-  };
-
-  const markHelpRequestHandled = async (request: any) => {
-    try {
-      await setDoc(doc(db, "help_requests", request.id), { status: "handled" }, { merge: true });
-      await set(ref(rtdb, `help_requests/${request.id}/status`), "handled");
-      loadHelpRequests();
-    } catch (err) {
-      console.error("Failed to mark help request handled:", err);
-      alert("Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
-    }
-  };
-
   // Add Question
   const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -731,9 +701,6 @@ export default function Admin() {
                   setActiveSubTab(tab.id as any);
                   if (tab.id === "messages") {
                     loadMessagesHistory();
-                  }
-                  if (tab.id === "help_requests") {
-                    loadHelpRequests();
                   }
                 }}
                 className={`flex items-center space-x-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer whitespace-nowrap ${
@@ -1060,55 +1027,6 @@ export default function Admin() {
         )}
 
         {/* 5. NOTIFICATIONS TAB */}
-        {activeSubTab === "help_requests" && (
-          <div className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xs max-w-4xl mx-auto">
-              <h3 className="font-display font-extrabold text-slate-800 text-lg mb-4">Yordam So'rovlari</h3>
-              <p className="text-slate-500 text-sm mb-6">Foydalanuvchilardan kelgan adminga yordam so'rovlari. Kimdan kelgani, emaili va xabar matni shu yerda ko'rsatiladi.</p>
-
-              {loadingHelpRequests ? (
-                <div className="py-12 text-center">
-                  <div className="w-8 h-8 border-3 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
-                </div>
-              ) : helpRequests.length === 0 ? (
-                <div className="py-16 text-center text-slate-400">
-                  <HelpCircle className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-                  <p className="font-semibold">Hozircha yordam so'rovlari yo'q.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {helpRequests.map((req) => (
-                    <div key={req.id} className="p-6 hover:bg-slate-50/70 rounded-3xl transition-all border border-slate-100 mb-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">{req.fromUserName || 'Noma'lum foydalanuvchi'}</p>
-                          <p className="text-[11px] text-slate-500">{req.fromUserEmail || 'Email mavjud emas'}</p>
-                        </div>
-                        <div className="text-right text-[11px] font-semibold text-slate-500">
-                          <p>{req.createdAt ? new Date(req.createdAt).toLocaleString('uz-UZ') : 'sana yo‘q'}</p>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black mt-2 ${req.status === 'handled' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {req.status === 'handled' ? 'Ko‘rilgan' : 'Yangi'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="bg-slate-50 rounded-3xl p-4 border border-slate-200 mb-4">
-                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Xabar</h4>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{req.message}</p>
-                      </div>
-                      <button
-                        onClick={() => markHelpRequestHandled(req)}
-                        className="py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white rounded-2xl text-xs font-bold transition-all"
-                      >
-                        {req.status === 'handled' ? 'Ko‘rilgan deb belgilandi' : 'Ko‘rilgan deb belgilash'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {activeSubTab === "notifications" && (
           <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-xs max-w-2xl mx-auto">
             <h3 className="font-display font-extrabold text-slate-800 text-lg mb-6">E'lon Yuborish</h3>
