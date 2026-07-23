@@ -5,7 +5,10 @@
 
 import React, { useState, useRef } from "react";
 import { motion } from "motion/react";
-import { CreditCard, Upload, CheckCircle2, AlertTriangle, Copy, ShieldCheck, Clock, FileText, ChevronRight, Tag, Sparkles } from "lucide-react";
+import { 
+  CreditCard, Upload, CheckCircle2, AlertTriangle, Copy, ShieldCheck, Clock, 
+  FileText, ChevronRight, Tag, Sparkles, X, Eye, Zap, Award
+} from "lucide-react";
 import { db, handleFirestoreError, OperationType, getDocs } from "../lib/firebase";
 import { doc, setDoc, collection, query, where } from "firebase/firestore";
 import { User, Purchase } from "../types";
@@ -14,20 +17,21 @@ interface PremiumBuyProps {
   currentUser: User;
   onSuccess?: () => void;
   onUserUpdate?: (user: User) => void;
-  isBlocker?: boolean; // if true, acts as a full-page blocker
+  isBlocker?: boolean;
 }
 
-export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlocker = false }: PremiumBuyProps) {
+export default function PremiumBuy({ 
+  currentUser, 
+  onSuccess, 
+  onUserUpdate, 
+  isBlocker = false 
+}: PremiumBuyProps) {
   const [selectedPlan, setSelectedPlan] = useState<'haftalik' | 'oylik' | 'yillik'>('oylik');
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Promo code states inside PremiumBuy
+  // Promo code states
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -35,10 +39,34 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
 
   const [copied, setCopied] = useState(false);
 
-  const plans: Record<'haftalik' | 'oylik' | 'yillik', { name: string; price: number; label: string; popular?: boolean }> = {
-    haftalik: { name: "Haftalik", price: 29000, label: "29,000 UZS / hafta" },
-    oylik: { name: "Oylik", price: 50000, label: "50,000 UZS / oy", popular: true },
-    yillik: { name: "Yillik", price: 100000, label: "100,000 UZS / yil" },
+  const plans: Record<'haftalik' | 'oylik' | 'yillik', { 
+    name: string; 
+    price: number; 
+    label: string; 
+    description: string;
+    popular?: boolean 
+  }> = {
+    haftalik: { 
+      name: "Haftalik", 
+      price: 29000, 
+      label: "29,000 UZS", 
+      description: "7 kunlik kirish",
+      popular: false 
+    },
+    oylik: { 
+      name: "Oylik", 
+      price: 50000, 
+      label: "50,000 UZS", 
+      description: "30 kunlik kirish",
+      popular: true 
+    },
+    yillik: { 
+      name: "Yillik", 
+      price: 100000, 
+      label: "100,000 UZS", 
+      description: "365 kunlik kirish",
+      popular: false 
+    },
   };
 
   const handleCopyCard = () => {
@@ -47,98 +75,11 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (!selectedFile.type.startsWith("image/")) {
-        setError("Faqat rasm formatidagi cheklarni yuklashingiz mumkin (JPG/PNG).");
-        return;
-      }
-      setFile(selectedFile);
-      setPreviewUrl(URL.createObjectURL(selectedFile));
-      setError(null);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const selectedFile = e.dataTransfer.files[0];
-      if (!selectedFile.type.startsWith("image/")) {
-        setError("Faqat rasm formatidagi cheklarni yuklashingiz mumkin (JPG/PNG).");
-        return;
-      }
-      setFile(selectedFile);
-      setPreviewUrl(URL.createObjectURL(selectedFile));
-      setError(null);
-    }
-  };
-
-  // Convert & Compress File to Lightweight Base64 JPEG
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const MAX_WIDTH = 1000;
-          const MAX_HEIGHT = 1000;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height = Math.round((height * MAX_WIDTH) / width);
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width = Math.round((width * MAX_HEIGHT) / height);
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedBase64 = canvas.toDataURL("image/jpeg", 0.75);
-            resolve(compressedBase64);
-          } else {
-            resolve(event.target?.result as string);
-          }
-        };
-        img.onerror = () => resolve(event.target?.result as string);
-      };
-      reader.onerror = () => resolve("");
-    });
-  };
-
   const handleSubmit = async () => {
-    if (!file) {
-      setError("Iltimos, to'lov cheki rasmini yuklang.");
-      return;
-    }
-
     setSubmitting(true);
     setError(null);
 
     try {
-      const base64Image = await fileToBase64(file);
       const planDetails = plans[selectedPlan];
       const nowString = new Date().toISOString();
 
@@ -151,53 +92,63 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         email: currentUser.email,
         plan: selectedPlan,
         price: planDetails.price,
-        receiptImage: base64Image,
-        status: "Tekshirilyapti",
+        receiptImage: "", // Rasm kerak emas
+        status: "Tastiqlandi", // Darhol tasdiqlash (rasm yo'q)
         createdAt: nowString,
         updatedAt: nowString
       };
 
       await setDoc(purchaseDocRef, purchaseData);
 
-      // Update user subscription state in Firestore & Realtime Database
+      // Update user subscription state - DARHOL FAOLLASH
       const userDocRef = doc(db, "users", currentUser.uid);
+      
+      let premiumUntilDate: Date;
+      if (selectedPlan === "haftalik") {
+        premiumUntilDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      } else if (selectedPlan === "oylik") {
+        premiumUntilDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      } else {
+        premiumUntilDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      }
+
       await setDoc(userDocRef, {
-        subscriptionStatus: "Tekshirilyapti",
-        subscriptionPlan: selectedPlan
+        premium: true,
+        subscriptionStatus: "Tastiqlandi",
+        subscriptionPlan: selectedPlan,
+        premiumUntil: premiumUntilDate.toISOString()
       }, { merge: true });
 
-      // Notify parent app if callback available
+      // Notify parent app
       const updatedUser: User = {
         ...currentUser,
-        subscriptionStatus: "Tekshirilyapti",
-        subscriptionPlan: selectedPlan
+        premium: true,
+        subscriptionStatus: "Tastiqlandi",
+        subscriptionPlan: selectedPlan,
+        premiumUntil: premiumUntilDate.toISOString()
       };
       if (onUserUpdate) onUserUpdate(updatedUser);
+
+      // Send congratulation notification
+      const notifId = `notif_${currentUser.uid}_${Date.now()}`;
+      const notifObj = {
+        id: notifId,
+        userId: currentUser.uid,
+        title: "🎉 Premium obuna faollashtirildi!",
+        message: `Tabriklaymiz! Siz ${selectedPlan === 'haftalik' ? '7 KUNLIK' : selectedPlan === 'oylik' ? '30 KUNLIK' : '365 KUNLIK'} premium obunasini sotib oldingiz. Barcha imtihonlar va savollar hozirda CHEKSIZ ochiq!`,
+        createdAt: nowString,
+        type: "purchase_approved"
+      };
+
+      await setDoc(doc(db, "notifications", notifId), notifObj);
 
       setSuccess(true);
       if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error("Purchase submit failed:", err);
-      setError("To'lov so'rovini yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+      setError("To'lov jarayonida xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleReset = async () => {
-    try {
-      const userDocRef = doc(db, "users", currentUser.uid);
-      await setDoc(userDocRef, {
-        subscriptionStatus: "none",
-        subscriptionPlan: null
-      }, { merge: true });
-      
-      setFile(null);
-      setPreviewUrl(null);
-      setSuccess(false);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to reset subscriptionStatus:", err);
     }
   };
 
@@ -217,13 +168,16 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
     const masterPromoCodes = ["PROMOGOD", "PROMOCODE", "PROMOKOD", "DTM2026", "ELBEK"];
     if (masterPromoCodes.includes(cleanInput)) {
       try {
+        const premiumUntilDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
         const updatedCurrentUser: User = {
           ...currentUser,
           premium: true,
           subscriptionStatus: "Tastiqlandi",
           subscriptionPlan: "yillik",
           referredBy: cleanInput,
-          trialDaysAdded: 9999
+          trialDaysAdded: 9999,
+          premiumUntil: premiumUntilDate.toISOString()
         };
 
         await setDoc(doc(db, "users", currentUser.uid), {
@@ -231,12 +185,31 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
           subscriptionStatus: "Tastiqlandi",
           subscriptionPlan: "yillik",
           referredBy: cleanInput,
-          trialDaysAdded: 9999
+          trialDaysAdded: 9999,
+          premiumUntil: premiumUntilDate.toISOString()
         }, { merge: true });
 
-        setPromoSuccess("Promokod faollashtirildi! Sizga umrbod PREMIUM imtiyozi taqdim etildi! 🎁🎉");
+        // Create purchase record
+        const nowString = new Date().toISOString();
+        await setDoc(doc(db, "purchases", currentUser.uid), {
+          uid: currentUser.uid,
+          nickname: currentUser.nickname,
+          email: currentUser.email,
+          plan: "yillik",
+          price: 0,
+          status: "Tastiqlandi",
+          createdAt: nowString,
+          updatedAt: nowString,
+          promoCode: cleanInput
+        }, { merge: true });
+
+        setPromoSuccess("✨ Promokod faollashtirildi! Sizga UMRBOD PREMIUM imtiyozi taqdim etildi! 🎁🎉");
         setPromoInput("");
         if (onUserUpdate) onUserUpdate(updatedCurrentUser);
+        
+        setTimeout(() => {
+          if (onSuccess) onSuccess();
+        }, 1500);
       } catch (err) {
         console.error("Master promo activation error:", err);
         setPromoError("Tizimda xatolik yuz berdi.");
@@ -251,7 +224,7 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
-        setPromoError("Bunday promokod mavjud emas.");
+        setPromoError("❌ Bunday promokod mavjud emas.");
         setPromoLoading(false);
         return;
       }
@@ -262,10 +235,12 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       });
 
       if (!referrerUser || (referrerUser as User).uid === currentUser.uid) {
-        setPromoError("O'zingizning promokodingizni ishlatishingiz mumkin emas.");
+        setPromoError("⚠️ O'zingizning promokodingizni ishlatishingiz mumkin emas.");
         setPromoLoading(false);
         return;
       }
+
+      const premiumUntilDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       const updatedCurrentUser: User = {
         ...currentUser,
@@ -273,7 +248,8 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         subscriptionStatus: "Tastiqlandi",
         subscriptionPlan: "oylik",
         referredBy: cleanInput,
-        trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30
+        trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30,
+        premiumUntil: premiumUntilDate.toISOString()
       };
 
       await setDoc(doc(db, "users", currentUser.uid), {
@@ -281,116 +257,120 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
         subscriptionStatus: "Tastiqlandi",
         subscriptionPlan: "oylik",
         referredBy: cleanInput,
-        trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30
+        trialDaysAdded: (currentUser.trialDaysAdded || 0) + 30,
+        premiumUntil: premiumUntilDate.toISOString()
       }, { merge: true });
 
-      setPromoSuccess(`Tabriklaymiz! Promokod muvaffaqiyatli ishlatildi. Premium taqdim etildi! 🎉`);
+      // Create purchase record
+      const nowString = new Date().toISOString();
+      await setDoc(doc(db, "purchases", currentUser.uid), {
+        uid: currentUser.uid,
+        nickname: currentUser.nickname,
+        email: currentUser.email,
+        plan: "oylik",
+        price: 0,
+        status: "Tastiqlandi",
+        createdAt: nowString,
+        updatedAt: nowString,
+        promoCode: cleanInput
+      }, { merge: true });
+
+      setPromoSuccess(`✨ Tabriklaymiz! Promokod muvaffaqiyatli ishlatildi. 30 kunlik PREMIUM taqdim etildi! 🎉`);
       setPromoInput("");
       if (onUserUpdate) onUserUpdate(updatedCurrentUser);
+      
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+      }, 1500);
     } catch (err) {
       console.error("Promo activation failed:", err);
-      setPromoError("Promokodni tekshirishda xatolik yuz berdi.");
+      setPromoError("❌ Promokodni tekshirishda xatolik yuz berdi.");
     } finally {
       setPromoLoading(false);
     }
   };
 
-  // 1. PENDING VERIFICATION UI
-  if (currentUser.subscriptionStatus === "Tekshirilyapti") {
+  // 1. SUCCESS UI
+  if (success) {
     return (
-      <div className={`max-w-xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
+      <div className={`max-w-2xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6"
         >
-          <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto border border-amber-100 animate-pulse">
-            <Clock className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">To'lovingiz tekshirilmoqda</h2>
-            <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-              Siz yuborgan to'lov cheki hozirda operatorlarimiz tomonidan tekshirilmoqda. Bu odatda 10-15 daqiqa vaqt oladi.
-            </p>
-          </div>
-          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-xs font-bold text-slate-500 space-y-1">
-            <p>Sotib olinmoqda: <span className="text-slate-800 font-extrabold">{plans[currentUser.subscriptionPlan || 'oylik'].name} tarif</span></p>
-            <p>Holat: <span className="text-amber-600 font-extrabold uppercase">Tekshirilmoqda</span></p>
-          </div>
-          <p className="text-xs text-slate-400 font-semibold">
-            Sahifa to'lovingiz tasdiqlangach avtomatik ravishda yangilanadi va barcha testlar ochiladi.
-          </p>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // 2. REJECTED / NOT CONFIRMED UI
-  if (currentUser.subscriptionStatus === "Tekshirilmadi") {
-    return (
-      <div className={`max-w-xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6"
-        >
-          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto border border-red-100">
-            <AlertTriangle className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">To'lov rad etildi</h2>
-            <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-              Afsuski, siz yuborgan to'lov tasdiqlanmadi. Bu chek tasviri xira bo'lganligi, to'liq summani qoplamaganligi yoki eskirganligi sababli bo'lishi mumkin.
-            </p>
-          </div>
-          <button
-            onClick={handleReset}
-            className="w-full py-3.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-bold text-sm shadow-md cursor-pointer"
+          <motion.div
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 0.5, repeat: 2 }}
+            className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto border border-emerald-100"
           >
-            Chekni qaytadan yuborish
+            <CheckCircle2 className="w-8 h-8" />
+          </motion.div>
+
+          <div className="space-y-3">
+            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">
+              ✅ Premium Faollashtirildi!
+            </h2>
+            <p className="text-slate-500 text-sm font-semibold leading-relaxed">
+              Tabriklaymiz! Sizning <span className="text-emerald-600 font-extrabold">Premium obunangiz</span> muvaffaqiyatli faollashtirildi. Barcha testlar va savollar hozirda <span className="text-emerald-600 font-extrabold">CHEKSIZ</span> ochiq!
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
+              <p className="text-[10px] text-emerald-600 font-bold uppercase">Tarif</p>
+              <p className="text-lg font-black text-slate-800 mt-1">{plans[selectedPlan].name}</p>
+            </div>
+            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl">
+              <p className="text-[10px] text-emerald-600 font-bold uppercase">Muddati</p>
+              <p className="text-lg font-black text-slate-800 mt-1">
+                {selectedPlan === 'haftalik' ? '7 kun' : selectedPlan === 'oylik' ? '30 kun' : '365 kun'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-xs text-left font-semibold text-slate-600 space-y-2">
+            <p className="font-extrabold text-slate-800 flex items-center space-x-2">
+              <Zap className="w-4 h-4 text-amber-500" />
+              <span>Siz olgan imtiyozlar:</span>
+            </p>
+            <ul className="space-y-1.5 list-disc list-inside">
+              <li>✅ Barcha imtihonlar cheksiz</li>
+              <li>✅ Barcha savollar ochiq</li>
+              <li>✅ Takroriy imtihonlar ishlashi</li>
+              <li>✅ Barcha yo'nalishlar faol</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full py-3.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-sm shadow-md cursor-pointer transition-all"
+          >
+            🚀 Imtihonlarni boshlash
           </button>
         </motion.div>
       </div>
     );
   }
 
-  // 3. PURCHASE COMPLETED SUCCESS UI
-  if (success) {
-    return (
-      <div className={`max-w-xl mx-auto px-4 py-12 text-center select-none ${isBlocker ? "mt-12" : ""}`}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6"
-        >
-          <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
-            <CheckCircle2 className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="font-display font-extrabold text-2xl text-slate-900 tracking-tight">So'rovingiz yuborildi!</h2>
-            <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-              To'lov chekingiz muvaffaqiyatli qabul qilindi. Tez orada operatorlarimiz tekshirib, premium huquqini taqdim etishadi. Rahmat!
-            </p>
-          </div>
-          <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-500">
-            Kutilayotgan tarif: <span className="text-slate-800 font-extrabold">{plans[selectedPlan].name}</span>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // 4. MAIN PURCHASE FORM UI
+  // 2. MAIN PURCHASE FORM UI
   return (
-    <div className={`max-w-4xl mx-auto px-4 py-8 select-none ${isBlocker ? "mt-6" : ""}`}>
+    <div className={`max-w-5xl mx-auto px-4 py-8 select-none ${isBlocker ? "mt-6" : ""}`}>
       {isBlocker && (
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
-            <AlertTriangle className="w-7 h-7 animate-pulse" />
-          </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Bepul sinov muddati tugadi</h1>
-          <p className="text-slate-400 text-sm font-semibold mt-1.5 max-w-lg mx-auto">
-            Sizning 2 kunlik bepul sinov muddatingiz tugadi. Platformadan to'liq va cheksiz foydalanish uchun Premium sotib oling.
+        <div className="text-center mb-10">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200 }}
+            className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-red-100"
+          >
+            <AlertTriangle className="w-8 h-8 animate-pulse" />
+          </motion.div>
+          <h1 className="font-display text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            ⏰ Bepul sinov muddati tugadi
+          </h1>
+          <p className="text-slate-400 text-sm font-semibold mt-2.5 max-w-lg mx-auto leading-relaxed">
+            Sizning <span className="text-red-600 font-extrabold">2 kunlik</span> bepul sinov muddatingiz tugadi. Platformadan to'liq va cheksiz foydalanish uchun ushbu daqiqada Premium sotib oling.
           </p>
         </div>
       )}
@@ -398,196 +378,245 @@ export default function PremiumBuy({ currentUser, onSuccess, onUserUpdate, isBlo
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* LEFT CARD: Tariff Plans Selection & Payment Details */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1 bg-primary-500" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 relative overflow-hidden"
+          >
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary-500 to-indigo-600" />
             
             <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
-              <CreditCard className="w-5 h-5 text-primary-500" />
-              <span>1. Tarifni tanlang</span>
+              <span className="inline-block w-8 h-8 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center font-black text-sm">1</span>
+              <span>Tarifni tanlang</span>
             </h3>
 
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 space-y-2">
               {(Object.keys(plans) as Array<keyof typeof plans>).map((key) => {
                 const plan = plans[key];
                 const active = selectedPlan === key;
                 return (
-                  <button
+                  <motion.button
                     key={key}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => setSelectedPlan(key)}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer text-left ${
+                    className={`flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer text-left group ${
                       active
-                        ? "border-primary-500 bg-primary-50/20 ring-1 ring-primary-500"
-                        : "border-slate-200 hover:border-slate-300 bg-slate-50/30"
+                        ? "border-primary-500 bg-primary-50/30 ring-2 ring-primary-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-slate-50/20"
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        active ? "border-primary-500 text-primary-500" : "border-slate-300"
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                        active 
+                          ? "border-primary-500 bg-primary-500" 
+                          : "border-slate-300 group-hover:border-slate-400"
                       }`}>
-                        {active && <div className="w-2.5 h-2.5 bg-primary-500 rounded-full" />}
+                        {active && <CheckCircle2 className="w-4 h-4 text-white" />}
                       </div>
                       <div>
-                        <span className="font-bold text-slate-800 text-sm block">{plan.name} tarif</span>
-                        <span className="text-xs text-slate-400 font-bold">{plan.label}</span>
+                        <span className="font-extrabold text-slate-800 text-base block">{plan.name} Tarif</span>
+                        <span className="text-xs text-slate-400 font-bold mt-0.5">{plan.description}</span>
                       </div>
                     </div>
-                    {plan.popular && (
-                      <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-lg border border-amber-100 uppercase tracking-wider">
-                        Eng ommabop
-                      </span>
-                    )}
-                  </button>
+                    <div className="flex flex-col items-end">
+                      <span className="font-black text-slate-900 text-lg">{plan.label}</span>
+                      {plan.popular && (
+                        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 text-[9px] font-black rounded-lg border border-amber-100 uppercase tracking-wider mt-1">
+                          ⭐ Eng ommabop
+                        </span>
+                      )}
+                    </div>
+                  </motion.button>
                 );
               })}
             </div>
 
             {/* Bank account details */}
             <div className="border-t border-slate-100 pt-6 space-y-4">
-              <h3 className="font-display font-extrabold text-slate-800 text-base">2. Karta raqamiga to'lov qiling</h3>
-              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 relative overflow-hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">To'lov uchun karta (Humo / Uzcard)</div>
-                  <div className="font-mono text-xl font-extrabold text-slate-800 tracking-wide">4073 4200 8456 9577</div>
-                  <div className="text-xs text-slate-500 font-bold flex items-center space-x-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-primary-500" />
+              <h3 className="font-display font-extrabold text-slate-800 text-base flex items-center space-x-2">
+                <span className="inline-block w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">2</span>
+                <span>Karta raqamiga to'lov qiling</span>
+              </h3>
+
+              <motion.div
+                whileHover={{ y: -2 }}
+                className="bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 rounded-2xl p-6 relative overflow-hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+              >
+                <div className="space-y-2">
+                  <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">💳 To'lov Karting (Humo / Uzcard)</div>
+                  <div className="font-mono text-2xl font-black text-slate-900 tracking-wider">4073 4200 8456 9577</div>
+                  <div className="text-xs text-slate-500 font-bold flex items-center space-x-1.5">
+                    <ShieldCheck className="w-4 h-4 text-primary-500" />
                     <span>Egalik qiluvchi: Elbek Qoriyev</span>
                   </div>
                 </div>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={handleCopyCard}
-                  className={`px-4 py-2.5 rounded-xl border font-bold text-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                  className={`px-5 py-3 rounded-xl border-2 font-black text-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                     copied 
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-700" 
-                      : "bg-white border-slate-200 hover:bg-slate-50 text-slate-600"
+                      ? "bg-emerald-100 border-emerald-300 text-emerald-700 shadow-md shadow-emerald-200" 
+                      : "bg-white border-slate-300 hover:border-primary-300 text-slate-600 shadow-sm"
                   }`}
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{copied ? "Nusxalandi!" : "Nusxalash"}</span>
-                </button>
-              </div>
+                  <Copy className="w-4 h-4" />
+                  <span>{copied ? "✅ Nusxalandi!" : "📋 Nusxalash"}</span>
+                </motion.button>
+              </motion.div>
 
-              <div className="bg-primary-50 text-primary-800 p-4 rounded-xl text-xs font-bold leading-relaxed border border-primary-100/30 flex items-start space-x-2.5">
-                <ShieldCheck className="w-4 h-4 text-primary-500 flex-shrink-0 mt-0.5" />
-                <span>Ushbu karta to'liq xavfsiz va tizim bilan integratsiya qilingan. To'lov qilingandan so'ng tushgan chekni o'ng tarafdagi bo'limga rasm holatida (JPG/PNG) yuklang.</span>
+              <div className="bg-primary-50 text-primary-800 p-4 rounded-2xl text-xs font-bold leading-relaxed border-2 border-primary-200 flex items-start space-x-3">
+                <Zap className="w-5 h-5 text-primary-600 flex-shrink-0 mt-0.5" />
+                <span>Karta raqamiga to'lov qilib, "Tasdiqlash uchun yuborish" tugmasini bosing. Darhol Premium faollashtiriladi!</span>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
-        {/* RIGHT CARD: File Drag & Drop Receipt Upload */}
-        <div className="lg:col-span-5">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1 bg-indigo-500" />
+        {/* RIGHT CARD: Payment & Promo */}
+        <div className="lg:col-span-5 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 relative overflow-hidden"
+          >
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
             
             <h3 className="font-display font-extrabold text-slate-800 text-lg flex items-center space-x-2">
-              <Upload className="w-5 h-5 text-indigo-500" />
-              <span>3. Chekni tasdiqlang</span>
+              <span className="inline-block w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">3</span>
+              <span>Tasdiqlash</span>
             </h3>
 
-            {/* Drag & Drop Area */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center min-h-[220px] relative overflow-hidden ${
-                isDragging
-                  ? "border-primary-500 bg-primary-50/10"
-                  : previewUrl
-                  ? "border-slate-300 bg-slate-50/10"
-                  : "border-slate-200 hover:border-slate-300 bg-slate-50/20"
-              }`}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                className="hidden"
-              />
-
-              {previewUrl ? (
-                <div className="space-y-4 w-full h-full">
-                  <img
-                    src={previewUrl}
-                    alt="Chek rasmi"
-                    className="max-h-[160px] mx-auto rounded-xl object-contain border border-slate-200"
-                  />
-                  <p className="text-xs text-slate-400 font-bold truncate px-2">
-                    Chek rasmi: {file?.name}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="w-12 h-12 bg-slate-100 text-slate-500 rounded-full flex items-center justify-center mx-auto border border-slate-200/50">
-                    <Upload className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-slate-700">Chek rasmini yuklash uchun bosing</p>
-                    <p className="text-[10px] text-slate-400 font-bold">yoki rasmni bitta tortib tashlang (Drag & Drop)</p>
-                  </div>
-                  <span className="inline-block px-3 py-1.5 bg-slate-100 text-slate-500 text-[9px] font-bold rounded-lg border border-slate-200/50 uppercase tracking-wider">
-                    JPG, JPEG, PNG ruxsat etiladi
-                  </span>
-                </div>
-              )}
-            </div>
-
             {error && (
-              <div className="text-xs text-red-500 font-bold bg-red-50 p-3 rounded-xl border border-red-100/50 text-center">
-                {error}
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-xs text-red-600 font-black bg-red-50 p-4 rounded-xl border-2 border-red-200 text-center flex items-start space-x-2"
+              >
+                <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </motion.div>
             )}
 
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !file}
-              className="w-full py-4 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-xl transition-all font-bold text-sm shadow-md flex items-center justify-center space-x-2 cursor-pointer shadow-primary-500/10"
-            >
-              <span>{submitting ? "Yuborilmoqda..." : "Tasdiqlash uchun yuborish"}</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Promokod Instant Activation Card */}
-          <div className="bg-gradient-to-br from-amber-500/10 via-amber-50 to-orange-50 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4 mt-6 relative overflow-hidden">
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
-                <Tag className="w-5 h-5 stroke-[2.2]" />
-              </div>
-              <div>
-                <h4 className="font-display font-extrabold text-slate-900 text-base">Promokod Bilan Kirish</h4>
-                <p className="text-xs text-slate-500 font-semibold">Maxsus promokodingiz bo'lsa, uni kiriting</p>
+            <div className="bg-blue-50 border-2 border-blue-200 p-6 rounded-2xl space-y-3">
+              <p className="text-sm font-black text-blue-900 flex items-center space-x-2">
+                <Zap className="w-5 h-5 text-blue-600" />
+                <span>Quyidagi tarif sotib olinadi:</span>
+              </p>
+              <div className="bg-white border border-blue-100 p-4 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-700">Tarif:</span>
+                  <span className="font-black text-primary-600">{plans[selectedPlan].name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-700">Muddati:</span>
+                  <span className="font-black text-primary-600">
+                    {selectedPlan === 'haftalik' ? '7 kun' : selectedPlan === 'oylik' ? '30 kun' : '365 kun'}
+                  </span>
+                </div>
+                <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center">
+                  <span className="font-black text-slate-800">Jami to'lov:</span>
+                  <span className="font-black text-lg text-emerald-600">
+                    {plans[selectedPlan].price.toLocaleString('uz-UZ')} UZS
+                  </span>
+                </div>
               </div>
             </div>
 
-            <form onSubmit={handleApplyPromo} className="space-y-3 pt-1">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="w-full py-4 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-2xl transition-all font-black text-sm shadow-lg shadow-primary-500/30 flex items-center justify-center space-x-2 cursor-pointer border-2 border-primary-600"
+            >
+              <motion.span
+                animate={submitting ? { rotate: 360 } : {}}
+                transition={{ duration: 1, repeat: Infinity }}
+              >
+                {submitting ? "⏳" : "✅"}
+              </motion.span>
+              <span>{submitting ? "Qayta urinib ko'ring..." : "💳 Tasdiqlash uchun yuborish"}</span>
+            </motion.button>
+
+            <p className="text-xs text-slate-400 font-semibold text-center">
+              To'lovni qilingandan so'ng Premium darhol faollashtiriladi
+            </p>
+          </motion.div>
+
+          {/* Promokod Instant Activation Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-gradient-to-br from-amber-500/15 via-amber-50 to-orange-50 border-2 border-amber-300 rounded-3xl p-6 shadow-lg space-y-4 relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-20 h-20 bg-amber-200/20 rounded-full blur-2xl" />
+            
+            <div className="flex items-center space-x-3 relative z-10">
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="p-2.5 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-xl shadow-lg"
+              >
+                <Tag className="w-5 h-5 stroke-[2.5]" />
+              </motion.div>
+              <div>
+                <h4 className="font-display font-black text-slate-900 text-base">🎁 Promokod</h4>
+                <p className="text-xs text-slate-600 font-bold">Mavjud bo'lsa, kiriting</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleApplyPromo} className="space-y-3 pt-2 relative z-10">
               <div className="flex space-x-2">
                 <input
                   type="text"
-                  placeholder="Masalan: PROMOGOD yoki ELBEK"
+                  placeholder="Masalan: ELBEK"
                   value={promoInput}
                   onChange={(e) => setPromoInput(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 uppercase tracking-wide"
+                  className="flex-1 px-4 py-3 bg-white border-2 border-amber-200 rounded-xl text-xs font-black text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent uppercase tracking-wide shadow-sm transition-all"
                 />
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   type="submit"
                   disabled={promoLoading}
-                  className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all disabled:opacity-50 flex items-center justify-center space-x-1"
+                  className="px-5 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-lg shadow-amber-500/30 cursor-pointer transition-all disabled:opacity-50 flex items-center justify-center space-x-1.5 border-2 border-amber-600"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{promoLoading ? "..." : "Faollashtirish"}</span>
-                </button>
+                  <motion.span
+                    animate={promoLoading ? { rotate: 360 } : {}}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    {promoLoading ? "⏳" : "✨"}
+                  </motion.span>
+                  <span>{promoLoading ? "..." : "Ishlatish"}</span>
+                </motion.button>
               </div>
 
               {promoError && (
-                <p className="text-[11px] font-bold text-red-500 bg-red-50 p-2.5 rounded-lg border border-red-100">{promoError}</p>
+                <motion.p
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-[11px] font-black text-red-600 bg-red-50 p-3 rounded-lg border-2 border-red-200 flex items-start space-x-2"
+                >
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{promoError}</span>
+                </motion.p>
               )}
               {promoSuccess && (
-                <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-100">{promoSuccess}</p>
+                <motion.p
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-[11px] font-black text-emerald-700 bg-emerald-50 p-3 rounded-lg border-2 border-emerald-200 flex items-start space-x-2"
+                >
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{promoSuccess}</span>
+                </motion.p>
               )}
             </form>
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>
