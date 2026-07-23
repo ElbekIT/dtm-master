@@ -154,12 +154,6 @@ export default function Users({ currentUser, onSelectUser }: UsersProps) {
                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary-500 transition-all shrink-0" />
                   </div>
 
-                  {(user as any).bio && (
-                    <p className="text-slate-500 text-[11px] font-medium mt-3 line-clamp-2 leading-relaxed">
-                      {(user as any).bio}
-                    </p>
-                  )}
-
                   <div className="flex items-center space-x-4 mt-4 pt-3 border-t border-slate-100 text-[10px] font-bold text-slate-500">
                     <span className="flex items-center space-x-1">
                       <BookOpen className="w-3.5 h-3.5 text-blue-500" />
