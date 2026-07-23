@@ -11,7 +11,8 @@ import { User, Question } from "./types";
 import { PendingReferral } from "./lib/promo";
 import { hasActiveAccess } from "./lib/premium";
 import ReferralRewardModal from "./components/ReferralRewardModal";
-import { HelpCircle, Award, CheckCircle2, ShieldCheck, Cpu } from "lucide-react";
+import { HelpCircle, Award, CheckCircle2, ShieldCheck, Cpu, Mail, AlertCircle, Send } from "lucide-react";
+import { motion } from "motion/react";
 
 // Pages
 import Login from "./pages/Login";
@@ -57,6 +58,11 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [currentTab, setCurrentTab] = useState<string>("home");
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
+
+  // Help Modal State
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpSending, setHelpSending] = useState(false);
 
   // Tab switch handler that clears notification badge when viewing notifications
   const handleSelectTab = (tab: string) => {
@@ -221,6 +227,56 @@ export default function App() {
       });
     } catch (err) {
       console.error("Failed to sync user state to backend:", err);
+    }
+  };
+
+  // Send Help Message to Admin
+  const handleSendHelp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!helpMessage.trim() || !currentUser) {
+      alert("Iltimos, xabar matni kiriting.");
+      return;
+    }
+
+    setHelpSending(true);
+    try {
+      const messageId = `help_${currentUser.uid}_${Date.now()}`;
+      const messageObj = {
+        id: messageId,
+        fromUserId: currentUser.uid,
+        fromUserName: currentUser.nickname,
+        fromUserEmail: currentUser.email,
+        message: helpMessage.trim(),
+        createdAt: new Date().toISOString(),
+        status: "new",
+        type: "help_request"
+      };
+
+      // Save to Firestore
+      await setDoc(doc(db, "help_requests", messageId), messageObj);
+
+      // Send notification to admin
+      const notifId = `notif_admin_help_${Date.now()}`;
+      const notifObj = {
+        id: notifId,
+        userId: "all",
+        title: `📞 Yordam Taklifi: ${currentUser.nickname}`,
+        message: helpMessage.trim(),
+        createdAt: new Date().toISOString(),
+        type: "help_request",
+        relatedUserId: currentUser.uid
+      };
+
+      await setDoc(doc(db, "notifications", notifId), notifObj);
+
+      alert("✅ Xabarnoma Admin ga yuborildi. Tez orada javob olasiz!");
+      setHelpMessage("");
+      setShowHelpModal(false);
+    } catch (err) {
+      console.error("Failed to send help message:", err);
+      alert("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+    } finally {
+      setHelpSending(false);
     }
   };
 
@@ -411,6 +467,7 @@ export default function App() {
           setCurrentTab={handleSelectTab}
           onLogout={handleLogout}
           unreadNotifCount={unreadNotifCount}
+          onHelpClick={() => setShowHelpModal(true)}
         />
       )}
 
@@ -519,6 +576,91 @@ export default function App() {
           <PremiumBuy currentUser={currentUser} isBlocker={true} />
         )}
       </main>
+
+      {/* 3. Help Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl p-8 w-full max-w-md shadow-xl space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-extrabold text-slate-900 text-lg flex items-center space-x-2">
+                <Mail className="w-6 h-6 text-blue-600" />
+                <span>Admin ga Xabar</span>
+              </h3>
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                <HelpCircle className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700 font-semibold">
+                Muammoni yoki taklifingizni admin ga yuboring. Admin eng tez orada javob beradi.
+              </p>
+            </div>
+
+            <form onSubmit={handleSendHelp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-2">Sizning ismi</label>
+                <input
+                  type="text"
+                  disabled
+                  value={currentUser?.nickname || ""}
+                  className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-2">Email</label>
+                <input
+                  type="email"
+                  disabled
+                  value={currentUser?.email || ""}
+                  className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-2">Xabar Matni *</label>
+                <textarea
+                  required
+                  rows={5}
+                  placeholder="O'z muammongizni yoki taklifingizni batafsil yozing..."
+                  value={helpMessage}
+                  onChange={(e) => setHelpMessage(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-semibold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowHelpModal(false)}
+                  className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-bold text-xs cursor-pointer hover:bg-slate-50 transition-all"
+                >
+                  ❌ Bekor
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={helpSending}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs cursor-pointer transition-all flex items-center justify-center space-x-2"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{helpSending ? "Yuborilmoqda..." : "📤 Yuborish"}</span>
+                </motion.button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
       {/* 4. Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center select-none text-xs font-semibold text-slate-400">
