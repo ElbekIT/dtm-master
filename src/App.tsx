@@ -21,6 +21,7 @@ import TestScreen from "./pages/TestScreen";
 import ResultScreen from "./pages/ResultScreen";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
+import Users from "./pages/Users";
 import Admin from "./pages/Admin";
 import Notifications from "./pages/Notifications";
 import PremiumBuy from "./pages/PremiumBuy";
@@ -59,6 +60,10 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("home");
   const [unreadNotifCount, setUnreadNotifCount] = useState<number>(0);
 
+  // The profile currently being VIEWED from the Users directory (read-only),
+  // as opposed to currentUser which is who is LOGGED IN.
+  const [viewedUserProfile, setViewedUserProfile] = useState<User | null>(null);
+
   // Help Modal State
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpMessage, setHelpMessage] = useState("");
@@ -73,6 +78,23 @@ export default function App() {
       } catch (e) {}
       setUnreadNotifCount(0);
     }
+    // Leaving the profile-view flow through the navbar should reset the
+    // viewed user so re-entering "users" always starts at the directory.
+    if (tab !== "view_profile" && tab !== "users") {
+      setViewedUserProfile(null);
+    }
+  };
+
+  // Called when a card is tapped in the Users directory.
+  const handleSelectUserProfile = (user: User) => {
+    setViewedUserProfile(user);
+    setCurrentTab("view_profile");
+  };
+
+  // Called from the "back" link inside the read-only profile view.
+  const handleBackToUsers = () => {
+    setViewedUserProfile(null);
+    setCurrentTab("users");
   };
 
   // Realtime notification listener for unread badge count
@@ -389,6 +411,7 @@ export default function App() {
     setCurrentTab("home");
     setActiveTestSession(null);
     setActiveResults(null);
+    setViewedUserProfile(null);
   };
 
   // Triggers starting a test securely with server-side generation
@@ -497,10 +520,23 @@ export default function App() {
         ) : currentTab === "notifications" ? (
           <Notifications currentUser={currentUser} />
         ) : currentTab === "profile" ? (
-          <Profile 
-            currentUser={currentUser} 
-            onUserUpdate={handleUserUpdate} 
-            onDeleteAccount={handleLogout} 
+          <Profile
+            currentUser={currentUser}
+            onUserUpdate={handleUserUpdate}
+            onDeleteAccount={handleLogout}
+          />
+        ) : currentTab === "users" ? (
+          <Users
+            currentUser={currentUser}
+            onSelectUser={handleSelectUserProfile}
+          />
+        ) : currentTab === "view_profile" && viewedUserProfile ? (
+          <Profile
+            currentUser={currentUser}
+            viewedUser={viewedUserProfile}
+            onBack={handleBackToUsers}
+            onUserUpdate={handleUserUpdate}
+            onDeleteAccount={handleLogout}
           />
         ) : currentTab === "admin" && currentUser.role === "admin" ? (
           <Admin />

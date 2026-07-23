@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { LogOut, Menu, X, Award, ShieldAlert, User as UserIcon, HelpCircle, Trophy, Home, Bell, Crown } from "lucide-react";
+import { LogOut, Menu, X, Award, ShieldAlert, User as UserIcon, HelpCircle, Trophy, Home, Bell, Crown, Users as UsersIcon } from "lucide-react";
 import { User } from "../types";
 
 interface HeaderProps {
@@ -21,17 +21,27 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
   const navItems = currentUser?.role === "admin"
     ? [
         { id: "admin", label: "Admin Panel", icon: ShieldAlert },
+        { id: "users", label: "Foydalanuvchilar", icon: UsersIcon },
         { id: "profile", label: "Profil", icon: UserIcon },
         { id: "about", label: "Loyiha haqida", icon: HelpCircle },
       ]
     : [
         { id: "home", label: "Bosh sahifa", icon: Home },
         { id: "ranking", label: "Reyting", icon: Trophy },
+        { id: "users", label: "Foydalanuvchilar", icon: UsersIcon },
         { id: "premium", label: "Premium Olish", icon: Crown },
         { id: "notifications", label: "Habarnomalar", icon: Bell },
         { id: "profile", label: "Profil", icon: UserIcon },
         { id: "about", label: "Loyiha haqida", icon: HelpCircle },
       ];
+
+  // "view_profile" is reached by tapping a card inside the Users directory,
+  // not from the navbar itself — but keep the "Foydalanuvchilar" tab
+  // highlighted while a profile from that list is being viewed.
+  const isTabActive = (id: string) => {
+    if (id === "users") return currentTab === "users" || currentTab === "view_profile";
+    return currentTab === id;
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-xs">
@@ -52,7 +62,7 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
           <nav className="hidden md:flex items-center space-x-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = currentTab === item.id;
+              const active = isTabActive(item.id);
               const isNotif = item.id === "notifications";
               const showBadge = isNotif && unreadNotifCount > 0;
 
@@ -128,7 +138,7 @@ export default function Header({ currentUser, currentTab, setCurrentTab, onLogou
         <div className="md:hidden bg-white border-b border-slate-100 px-4 pt-2 pb-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = currentTab === item.id;
+            const active = isTabActive(item.id);
             const isNotif = item.id === "notifications";
             const showBadge = isNotif && unreadNotifCount > 0;
 
