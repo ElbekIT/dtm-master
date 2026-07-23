@@ -16,6 +16,7 @@ import { collection, query, where, orderBy, doc, setDoc, deleteDoc } from "fireb
 import { deleteUser, signOut } from "firebase/auth";
 import { User } from "../types";
 import { getAccessRemainingText, hasActiveAccess, getAccessTimeBreakdown } from "../lib/premium";
+import { saveBio, getBio } from "@/app/actions/bio";
 
 const BIO_MAX_LENGTH = 200;
 
@@ -108,6 +109,24 @@ export default function Profile({ currentUser, viewedUser, onBack, onDeleteAccou
     }, 1000);
     return () => clearInterval(timer);
   }, [isOwnProfile]);
+
+  // Load bio from Neon database when component mounts or modal opens
+  useEffect(() => {
+    const loadBio = async () => {
+      try {
+        const bioData = await getBio(currentUser.uid);
+        if (bioData?.bio) {
+          setEditBio(bioData.bio);
+        }
+      } catch (error) {
+        console.error("[v0] Failed to load bio:", error);
+      }
+    };
+
+    if (isOwnProfile && showEditModal) {
+      loadBio();
+    }
+  }, [showEditModal, isOwnProfile, currentUser.uid]);
 
   useEffect(() => {
     const fetchExamHistory = async () => {
@@ -285,7 +304,13 @@ export default function Profile({ currentUser, viewedUser, onBack, onDeleteAccou
     };
 
     try {
+      // Save to Firestore
       await setDoc(doc(db, "users", currentUser.uid), fieldUpdates, { merge: true });
+
+      // Save bio to Neon database
+      if (trimmedBio) {
+        await saveBio(currentUser.uid, trimmedBio);
+      }
 
       const mergedUser: User = { ...currentUser, ...fieldUpdates } as User;
 
